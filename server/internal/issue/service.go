@@ -1,0 +1,167 @@
+package issue
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
+	"log/slog"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/uug-ai/inspect/server/internal/config"
+	"github.com/uug-ai/inspect/server/internal/github"
+	"github.com/uug-ai/inspect/server/internal/store"
+)
+
+// IssueCreator creates GitHub issues (implemented by *github.Client).
+type IssueCreator interface {
+	CreateIssue(ctx context.Context, repo string, in github.IssueRequest) (*github.Issue, error)
+}
+
+// File is a validated attachment.
+type File struct {
+	Data        []byte
+	ContentType string // sniffed
+	Ext         string
+}
+
+// Result is what the API returns.
+type Result struct {
+	Number int    `json:"number"`
+	URL    string `json:"url"`
+}
+
+// Service turns a submission into stored media plus a GitHub issue.
+type Service struct {
+	Cfg      *config.Config
+	Issues   IssueCreator                  // unused in dry-run mode
+	StoreFor func(repo string) store.Store // store for media of an issue in repo
+	Previews *Previews                     // dry-run previews
+	Log      *slog.Logger
+	Now      func() time.Time
+}
+
+// Submit stores attachments and creates the issue (or a dry-run preview).
+func (s *Service) Submit(ctx context.Context, p *Payload, files []File) (*Result, error) {
+	repo := s.Cfg.DefaultRepo
+	if p.Repo != "" {
+		if !s.Cfg.RepoAllowed(p.Repo) {
+			return nil, invalid("repo %q is not allowed", p.Repo)
+		}
+		repo = p.Repo
+	}
+
+	now := time.Now
+	if s.Now != nil {
+		now = s.Now
+	}
+	id := randomID()
+	prefix := fmt.Sprintf("inspect/%s/%s/", now().UTC().Format("2006/01/02"), id)
+
+	st := s.StoreFor(repo)
+	atts := make([]Attachment, 0, len(files))
+	var nImg, nVid int
+	for _, f := range files {
+		var name string
+		if IsVideo(f.ContentType) {
+			nVid++
+			name = fmt.Sprintf("recording-%d.%s", nVid, f.Ext)
+		} else {
+			nImg++
+			name = fmt.Sprintf("screenshot-%d.%s", nImg, f.Ext)
+		}
+		url, err := st.Put(ctx, prefix+name, f.ContentType, f.Data)
+		if err != nil {
+			return nil, fmt.Errorf("store %s: %w", name, err)
+		}
+		atts = append(atts, Attachment{Name: name, URL: url, IsVideo: IsVideo(f.ContentType)})
+	}
+
+	req := github.IssueRequest{
+		Title:  p.Title,
+		Body:   RenderBody(p, atts),
+		Labels: s.labels(p.Labels),
+	}
+
+	if s.Cfg.DryRun {
+		s.Log.Info("dry run: would create issue",
+			"repo", repo, "title", req.Title, "labels", req.Labels, "attachments", len(atts), "body", req.Body)
+		s.Previews.Add(id, repo, req)
+		return &Result{Number: 0, URL: s.Cfg.PublicURL + "/preview/" + id}, nil
+	}
+
+	iss, err := s.Issues.CreateIssue(ctx, repo, req)
+	if err != nil {
+		return nil, fmt.Errorf("create issue in %s: %w", repo, err)
+	}
+	s.Log.Info("issue created", "repo", repo, "number", iss.Number, "url", iss.HTMLURL, "attachments", len(atts))
+	return &Result{Number: iss.Number, URL: iss.HTMLURL}, nil
+}
+
+// labels returns the configured labels plus client labels that are in the
+// allowlist (none if the allowlist is empty), de-duplicated.
+func (s *Service) labels(client []string) []string {
+	out := make([]string, 0, len(s.Cfg.Labels)+len(client))
+	seen := map[string]bool{}
+	add := func(l string) {
+		k := strings.ToLower(l)
+		if !seen[k] {
+			seen[k] = true
+			out = append(out, l)
+		}
+	}
+	for _, l := range s.Cfg.Labels {
+		add(l)
+	}
+	for _, l := range client {
+		for _, a := range s.Cfg.AllowedLabels {
+			if strings.EqualFold(a, l) {
+				add(a)
+				break
+			}
+		}
+	}
+	return out
+}
+
+func randomID() string {
+	b := make([]byte, 8)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+// Previews keeps the most recent dry-run issues in memory.
+type Previews struct {
+	mu    sync.Mutex
+	max   int
+	order []string
+	items map[string]string
+}
+
+// NewPreviews keeps at most max previews.
+func NewPreviews(max int) *Previews {
+	return &Previews{max: max, items: map[string]string{}}
+}
+
+// Add records a preview.
+func (p *Previews) Add(id, repo string, req github.IssueRequest) {
+	doc := fmt.Sprintf("<!-- dry run: repo=%s labels=%s -->\n# %s\n\n%s", repo, strings.Join(req.Labels, ","), req.Title, req.Body)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.items[id] = doc
+	p.order = append(p.order, id)
+	for len(p.order) > p.max {
+		delete(p.items, p.order[0])
+		p.order = p.order[1:]
+	}
+}
+
+// Get returns a preview's markdown.
+func (p *Previews) Get(id string) (string, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	doc, ok := p.items[id]
+	return doc, ok
+}

@@ -1,0 +1,34 @@
+{
+  "name": "@uug-ai/inspect",
+  "version": "0.1.0",
+  "description": "Point, highlight, report: capture or record part of a web page, annotate it, and file it as a GitHub issue.",
+  "type": "module",
+  "main": "./dist/inspect.umd.cjs",
+  "module": "./dist/inspect.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/inspect.js",
+      "require": "./dist/inspect.umd.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/uug-ai/inspect.git",
+    "directory": "client"
+  },
+  "scripts": {
+    "dev": "vite demo --config vite.config.ts",
+    "build": "tsc --noEmit && vite build && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vite": "8.3.4"
+  }
+}

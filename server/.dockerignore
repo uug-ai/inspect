@@ -1,0 +1,6 @@
+data/
+*.md
+.git
+Dockerfile
+.env
+.env.*
