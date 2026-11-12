@@ -39,4 +39,4 @@ Run **Actions → Release** (manual, choose `major`, `minor` or `patch`). One ru
 1. **Server image:** `ghcr.io/uug-ai/inspect:<tag>`, signed and hardened, built by `uug-ai/workflows` (profile `standalone`; the smoke test is [`image/smoke-test.sh`](image/smoke-test.sh)). A PR in `uug-ai/gitops` then updates the image in `environments/production-bijlokehof/inspect/deployment.yaml`, which Argo CD deploys to **https://inspect.uug.ai**.
 2. **Browser library:** `@uug-ai/inspect@<version>` published to npmjs, with provenance.
 
-The workflow needs the `TOKEN` secret (for the gitops PR) and `NPM_ACCESS_TOKEN`, the same secrets the other uug-ai repos use.
+The gitops PR uses the org `TOKEN` secret. npm publishing uses [trusted publishing](https://docs.npmjs.com/trusted-publishers) (no npm token): on npmjs.com, `@uug-ai/inspect` trusts `uug-ai/inspect` workflow `npm-publish.yml`.

@@ -72,11 +72,19 @@ jobs:
     secrets: inherit
 
   # The library doesn't depend on the image, so a failed gitops PR step (or
-  # image retry) doesn't block it. Rerun by hand: Actions -> Publish npm package.
+  # image retry) doesn't block it. npm trusted publishing only accepts runs
+  # started by npm-publish.yml itself, so start it as its own run.
   npm-package:
     needs: bump-release
     if: ${{ always() && !cancelled() && inputs.publish && (needs.bump-release.result == 'success' || needs.bump-release.result == 'skipped') }}
-    uses: ./.github/workflows/npm-publish.yml
-    with:
-      tag: ${{ inputs.existing_tag || needs.bump-release.outputs.tag }}
-    secrets: inherit
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: write
+    steps:
+      - name: Start "Publish npm package"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.existing_tag || needs.bump-release.outputs.tag }}
+        run: |
+          gh workflow run npm-publish.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME" -f tag="$TAG"
+          echo "Started npm publish for $TAG: https://github.com/$GITHUB_REPOSITORY/actions/workflows/npm-publish.yml" >> "$GITHUB_STEP_SUMMARY"

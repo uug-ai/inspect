@@ -1,13 +1,11 @@
 name: Publish npm package
 
-# Publishes @uug-ai/inspect for an existing release tag. Called by release.yml,
-# and runnable by hand to (re)publish a tag. Skips versions already on npm.
+# Publishes @uug-ai/inspect for an existing release tag using npm trusted
+# publishing (GitHub OIDC): no npm token, no 2FA prompt, provenance included.
+# npmjs.com trusts exactly this workflow file, so it must always be the
+# top-level run: release.yml starts it with `gh workflow run`, and it can be
+# run by hand (Actions -> Publish npm package) to (re)publish a tag.
 on:
-  workflow_call:
-    inputs:
-      tag:
-        required: true
-        type: string
   workflow_dispatch:
     inputs:
       tag:
@@ -17,7 +15,7 @@ on:
 
 permissions:
   contents: read
-  id-token: write # npm provenance
+  id-token: write # trusted publishing + provenance
 
 jobs:
   publish:
@@ -35,6 +33,8 @@ jobs:
           registry-url: https://registry.npmjs.org
           cache: npm
           cache-dependency-path: client/package-lock.json
+      # Trusted publishing needs npm >= 11.5.1; Node 22 ships npm 10.
+      - run: npm install -g npm@11
       - run: npm ci
       - name: Set version from release tag
         env:
@@ -42,14 +42,12 @@ jobs:
         run: npm version "${RELEASE_TAG#v}" --no-git-tag-version --allow-same-version
       - run: npm run build
       - name: Publish (skipped if this version is already on npm)
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
           name=$(node -p "require('./package.json').name")
           version=$(node -p "require('./package.json').version")
-          if npm view "$name@$version" version >/dev/null 2>&1; then
+          if npm view "$name@$version" version --registry=https://registry.npmjs.org/ >/dev/null 2>&1; then
             echo "$name@$version is already published"
             exit 0
           fi
-          npm publish --access public --provenance
+          npm publish --access public --registry=https://registry.npmjs.org/
