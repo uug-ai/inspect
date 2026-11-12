@@ -2,6 +2,8 @@
 
 A browser library for filing bug reports from inside a web app. The user captures part of the page, marks it up, and submits; a GitHub issue is created through the [inspect server](../server).
 
+![Filing a bug report with inspect](https://raw.githubusercontent.com/uug-ai/inspect/main/docs/demo.gif)
+
 - **Area**: drag a rectangle and take a screenshot of it.
 - **Element**: hover to highlight elements and click one to screenshot it. The report includes a CSS selector for the element. `↑` and `↓` move the selection to the parent or back to the child.
 - **Record**: record a video of an area or of the whole page. The page stays usable while recording.
