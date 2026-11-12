@@ -4,10 +4,6 @@
 
 ![Filing a bug report from Kerberos Hub: open the toolbar, drag over the dashboard counters, annotate, describe, create the issue](docs/demo.gif)
 
-<sub>In Kerberos Hub (staging): open the toolbar with the bug button or <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>I</kbd>, choose **Area**, drag over the part that's wrong, annotate it, describe it and create the issue. The demo's submit was answered locally, so it created no real issue.</sub>
-
-<p align="center"><img src="docs/editor.png" alt="The report dialog: annotated screenshot on the left (rectangle, arrow, text), title, description and technical-context toggle on the right" width="720"></p>
-
 ```
  browser (any web app)                        inspect server (Go)                 GitHub
 ┌──────────────────────────┐  multipart   ┌────────────────────────┐   REST   ┌──────────────────┐
