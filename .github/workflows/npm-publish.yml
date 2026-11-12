@@ -1,0 +1,55 @@
+name: Publish npm package
+
+# Publishes @uug-ai/inspect for an existing release tag. Called by release.yml,
+# and runnable by hand to (re)publish a tag. Skips versions already on npm.
+on:
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish, e.g. v0.1.0
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write # npm provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: https://registry.npmjs.org
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - run: npm ci
+      - name: Set version from release tag
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: npm version "${RELEASE_TAG#v}" --no-git-tag-version --allow-same-version
+      - run: npm run build
+      - name: Publish (skipped if this version is already on npm)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          name=$(node -p "require('./package.json').name")
+          version=$(node -p "require('./package.json').version")
+          if npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "$name@$version is already published"
+            exit 0
+          fi
+          npm publish --access public --provenance

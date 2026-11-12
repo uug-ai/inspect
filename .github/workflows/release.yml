@@ -71,41 +71,12 @@ jobs:
       gitops_value: ghcr.io/uug-ai/inspect:${{ inputs.existing_tag || needs.bump-release.outputs.tag }}
     secrets: inherit
 
+  # The library doesn't depend on the image, so a failed gitops PR step (or
+  # image retry) doesn't block it. Rerun by hand: Actions -> Publish npm package.
   npm-package:
-    needs: [bump-release, server-image]
-    if: ${{ always() && !cancelled() && inputs.publish && needs.server-image.result == 'success' }}
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-      id-token: write # npm provenance
-    defaults:
-      run:
-        working-directory: client
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.existing_tag || needs.bump-release.outputs.tag }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          registry-url: https://registry.npmjs.org
-          cache: npm
-          cache-dependency-path: client/package-lock.json
-      - run: npm ci
-      - name: Set version from release tag
-        env:
-          RELEASE_TAG: ${{ inputs.existing_tag || needs.bump-release.outputs.tag }}
-        run: npm version "${RELEASE_TAG#v}" --no-git-tag-version --allow-same-version
-      - run: npm run build
-      - name: Publish (skipped if this version is already on npm)
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
-        run: |
-          set -euo pipefail
-          name=$(node -p "require('./package.json').name")
-          version=$(node -p "require('./package.json').version")
-          if npm view "$name@$version" version >/dev/null 2>&1; then
-            echo "$name@$version is already published"
-            exit 0
-          fi
-          npm publish --access public --provenance
+    needs: bump-release
+    if: ${{ always() && !cancelled() && inputs.publish && (needs.bump-release.result == 'success' || needs.bump-release.result == 'skipped') }}
+    uses: ./.github/workflows/npm-publish.yml
+    with:
+      tag: ${{ inputs.existing_tag || needs.bump-release.outputs.tag }}
+    secrets: inherit
