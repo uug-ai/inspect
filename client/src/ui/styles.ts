@@ -132,23 +132,25 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 @keyframes ix-fade { from { opacity: 0; } }
 .ix-dialog {
-  width: min(1200px, 100%); max-height: calc(100vh - 48px); display: grid;
+  /* Fixed height: the screenshot shrinks to fit, so the tools and the screenshot strip stay visible. */
+  width: min(1200px, 100%); height: min(820px, calc(100vh - 48px)); display: grid;
   grid-template-columns: minmax(0, 1fr) 340px; background: var(--ix-bg); color: var(--ix-fg);
   border-radius: var(--ix-radius); box-shadow: var(--ix-shadow); overflow: hidden;
 }
-.ix-dialog.ix-note { grid-template-columns: 1fr; width: min(480px, 100%); }
+.ix-dialog.ix-note { grid-template-columns: 1fr; width: min(480px, 100%); height: auto; max-height: calc(100vh - 48px); }
 @media (max-width: 860px) {
   .ix-backdrop { padding: 0; }
   .ix-dialog { grid-template-columns: 1fr; max-height: 100vh; height: 100%; border-radius: 0; overflow: auto; }
+  .ix-dialog .ix-stage { height: 60vh; border-right: 0; border-bottom: 1px solid var(--ix-border); }
 }
-.ix-stage { display: flex; flex-direction: column; min-height: 0; background: var(--ix-bg-subtle); border-right: 1px solid var(--ix-border); }
+.ix-stage { display: flex; flex-direction: column; min-height: 0; overflow: hidden; background: var(--ix-bg-subtle); border-right: 1px solid var(--ix-border); }
 .ix-canvas-wrap {
-  position: relative; flex: 1; min-height: 240px; display: grid; place-items: center; padding: 16px; overflow: hidden;
+  position: relative; flex: 1 1 0; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 16px; overflow: hidden;
   background-image: conic-gradient(var(--ix-border) 25%, transparent 0 50%, var(--ix-border) 0 75%, transparent 0);
   background-size: 16px 16px; background-color: var(--ix-bg-subtle);
 }
 .ix-canvas-wrap canvas, .ix-canvas-wrap video {
-  max-width: 100%; max-height: calc(100vh - 160px); border-radius: 4px;
+  display: block; max-width: 100%; max-height: 100%; min-width: 0; min-height: 0; border-radius: 4px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, .25); background: #000;
 }
 .ix-canvas-wrap canvas { cursor: crosshair; touch-action: none; }
@@ -158,7 +160,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 
 .ix-tools {
-  display: flex; align-items: center; gap: 4px; padding: 8px 12px; flex-wrap: wrap;
+  flex: none; display: flex; align-items: center; gap: 4px; padding: 8px 12px; flex-wrap: wrap;
   border-bottom: 1px solid var(--ix-border); background: var(--ix-bg);
 }
 .ix-tools button {
@@ -179,7 +181,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 /* Screenshot strip (several screenshots in one report) */
 .ix-shots {
-  display: flex; align-items: center; gap: 8px; padding: 10px 12px; overflow-x: auto;
+  flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 12px; overflow-x: auto;
   border-top: 1px solid var(--ix-border); background: var(--ix-bg);
 }
 .ix-shot-wrap { position: relative; flex: none; }
