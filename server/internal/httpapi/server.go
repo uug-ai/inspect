@@ -42,6 +42,8 @@ type Server struct {
 	Previews *issue.Previews // non-nil: serve /preview/{id}
 	Limiter  *RateLimiter
 	Log      *slog.Logger
+	// Site registers the landing page routes (GET / and GET /static/); optional.
+	Site func(*http.ServeMux)
 }
 
 // Handler returns the routed handler.
@@ -58,6 +60,9 @@ func (s *Server) Handler() http.Handler {
 	}
 	if s.Previews != nil {
 		mux.HandleFunc("GET /preview/{id}", s.preview)
+	}
+	if s.Site != nil {
+		s.Site(mux)
 	}
 	return mux
 }

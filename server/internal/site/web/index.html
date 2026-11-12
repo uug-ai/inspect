@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#2713ff" />
+    <meta name="description" content="Inspect turns the broken part of your web app into a GitHub issue: point, screenshot or record, annotate, send. Open source, by UUG." />
+    <meta property="og:title" content="Inspect | UUG" />
+    <meta property="og:description" content="Point at the bug. File the issue. Screenshot or record any part of your web app, mark it up, and send it straight to GitHub." />
+    <meta property="og:image" content="https://inspect.uug.ai/static/demo-poster.webp" />
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600&display=swap" />
+    <link rel="stylesheet" href="/static/site.css" />
+    <script src="/static/theme.js"></script>
+    <title>Inspect | UUG</title>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="skip-link" href="#content">Skip to content</a>
+      <div class="topbar-inner">
+        <a class="brand" href="https://learn.uug.ai" aria-label="UUG learning hub">UUG</a>
+        <nav class="topbar-nav" aria-label="Page">
+          <a href="#demo">Demo</a>
+          <a href="#features">Features</a>
+          <a href="#setup">Setup</a>
+        </nav>
+        <div class="topbar-actions">
+          <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to dark mode" title="Switch to dark mode" aria-pressed="false">
+            <span class="theme-toggle__thumb">
+              <svg class="theme-toggle__sun" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="2"/><path d="M12 2V5M12 19V22M4 12H1M23 12H20M5.64 5.64L3.52 3.52M20.48 20.48L18.36 18.36M5.64 18.36L3.52 20.48M20.48 3.52L18.36 5.64" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              <svg class="theme-toggle__moon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </button>
+          <a class="icon-button github-link" href="https://github.com/uug-ai/inspect" aria-label="Inspect on GitHub" title="GitHub">
+            <svg fill="currentColor" viewBox="3 3 18 18" aria-hidden="true"><path d="M12 3C7.0275 3 3 7.12937 3 12.2276c0 4.0833 2.57625 7.5321 6.15374 8.7548C9.60374 21.0631 9.77249 20.7863 9.77249 20.5441 9.77249 20.3249 9.76125 19.5982 9.76125 18.8254 7.5 19.2522 6.915 18.2602 6.735 17.7412 6.63375 17.4759 6.19499 16.6569 5.8125 16.4378 5.4975 16.2647 5.0475 15.838 5.80124 15.8264 6.51 15.8149 7.01625 16.4954 7.18499 16.7723 7.99499 18.1679 9.28875 17.7758 9.80625 17.5335 9.885 16.9337 10.1212 16.53 10.38 16.2993 8.3775 16.0687 6.285 15.2728 6.285 11.7432c0-1.0035.34875-1.834.92249-2.47994C7.1175 9.03257 6.8025 8.08674 7.2975 6.81794c0 0 .753749999999999-.24223 2.47499.94583.72001-.20762 1.48501-.31143 2.25001-.31143C12.7875 7.45234 13.5525 7.55615 14.2725 7.76377c1.7212-1.19959 2.475-.94583 2.475-.94583C17.2424 8.08674 16.9275 9.03257 16.8375 9.26326 17.4113 9.9092 17.76 10.7281 17.76 11.7432c0 3.5411-2.1037 4.3255-4.1063 4.5561C13.98 16.5877 14.2613 17.1414 14.2613 18.0065 14.2613 19.2407 14.25 20.2326 14.25 20.5441 14.25 20.7863 14.4188 21.0746 14.8688 20.9824 16.6554 20.364 18.2079 19.1866 19.3078 17.6162c1.0999-1.5705 1.6917-3.4551 1.6922-5.3886C21 7.12937 16.9725 3 12 3z"/></svg>
+          </a>
+        </div>
+      </div>
+    </header>
+
+    <main id="content">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="section-label"><span class="dot" aria-hidden="true"></span>UUG INSPECT</p>
+          <h1>Point at the bug.<br /><span>File the issue.</span></h1>
+          <p class="lede">Screenshot or record the part of your web app that's wrong, mark it up, and send it straight to GitHub, with the page, browser and console errors already attached.</p>
+          <div class="cta-row">
+            <button type="button" class="button primary hero-button" id="try-it" data-try>
+              Try it on this page
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <a class="button secondary hero-button" href="#setup">Add it to your app</a>
+          </div>
+          <p class="fine-print">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Open source. Demo mode on this page: nothing is sent.
+          </p>
+        </div>
+
+        <div class="hero-illustration" aria-hidden="true">
+          <span class="orbit"></span>
+          <span class="orbit orbit-two"></span>
+          <div class="report-card">
+            <div class="report-top">
+              <span>REPORT AN ISSUE</span>
+              <span class="report-tools"><i></i><i class="on"></i><i></i><i></i><i class="swatch"></i></span>
+            </div>
+            <div class="shot">
+              <div class="shot-title">Dashboard</div>
+              <div class="tiles">
+                <div class="tile"><b>2<small>/2</small></b><span>Devices</span></div>
+                <div class="tile marked"><b>0</b><span>Open cases</span></div>
+                <div class="tile"><b>0.71<small>GB</small></b><span>Upload</span></div>
+              </div>
+              <svg class="shot-arrow" viewBox="0 0 84 40" fill="none"><path d="M80 5C56 6 32 14 15 29" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><path d="M7 37l4-14 11 9z" fill="currentColor"/></svg>
+              <span class="shot-label">Stays at 0</span>
+            </div>
+            <div class="report-field"><span>Title</span>Open Cases counter doesn't update</div>
+            <div class="report-actions"><span class="ghost">Cancel</span><span class="go">Create issue</span></div>
+          </div>
+          <div class="floating-badge">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+            Issue #128 created
+          </div>
+          <div class="floating-note">
+            <span class="note-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h10M4 18h7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+            <span>Context attached<small>URL, browser, console errors</small></span>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="demo">
+        <div class="section-head">
+          <p class="eyebrow">SEE IT IN ACTION</p>
+          <h2>From "that looks wrong" to a GitHub issue in twenty seconds.</h2>
+          <p>Recorded in Kerberos Hub: open the toolbar, drag over the problem, annotate it, describe it, done.</p>
+        </div>
+        <figure class="demo-frame">
+          <div class="frame-bar" aria-hidden="true"><i></i><i></i><i></i><span>app.kerberos.lol/dashboard</span></div>
+          <video src="/static/demo.mp4" poster="/static/demo-poster.webp" autoplay muted loop playsinline preload="metadata" aria-label="Filing a bug report: open the toolbar, select the dashboard counters, annotate them, add a title and description, and create the issue"></video>
+        </figure>
+      </section>
+
+      <section class="section" id="features">
+        <div class="section-head">
+          <p class="eyebrow">WHAT YOU GET</p>
+          <h2>Bug reports your developers can act on.</h2>
+        </div>
+        <ul class="features">
+          <li>
+            <span class="feature-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><rect x="8" y="8" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.7"/></svg></span>
+            <h3>Area, element or recording</h3>
+            <p>Drag a rectangle, click an element (with its CSS selector), or record a short video while you reproduce the bug.</p>
+          </li>
+          <li>
+            <span class="feature-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M5 19L19 5M10 5h9v9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <h3>Annotate and redact</h3>
+            <p>Arrows, boxes, pen and text, plus pixelate to hide faces, number plates or personal data before anything leaves the browser.</p>
+          </li>
+          <li>
+            <span class="feature-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h10M4 18h7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="18" cy="16" r="3" stroke="currentColor" stroke-width="1.7"/></svg></span>
+            <h3>Context included</h3>
+            <p>URL, browser, viewport, recent console errors and your app's own metadata. The reporter sees it all and can switch it off.</p>
+          </li>
+          <li>
+            <span class="feature-icon"><svg viewBox="0 0 24 24" fill="none"><circle cx="6" cy="6" r="2.5" stroke="currentColor" stroke-width="1.7"/><circle cx="6" cy="18" r="2.5" stroke="currentColor" stroke-width="1.7"/><circle cx="18" cy="9" r="2.5" stroke="currentColor" stroke-width="1.7"/><path d="M6 8.5v7M18 11.5c0 3-3 4-9.5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+            <h3>Straight into GitHub</h3>
+            <p>A real issue with the screenshot inline, labelled and ready for triage. Media lives on its own branch, away from your code.</p>
+          </li>
+          <li>
+            <span class="feature-icon"><svg viewBox="0 0 24 24" fill="none"><rect x="5" y="10" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+            <h3>Token stays on the server</h3>
+            <p>The browser never sees a GitHub token. The server checks the origin, file types and sizes, and rate-limits every client.</p>
+          </li>
+          <li>
+            <span class="feature-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <h3>Any web app, one line</h3>
+            <p>No framework, no dependencies, about 14 KB gzipped. Its UI is isolated in a Shadow DOM, so it never clashes with your styles.</p>
+          </li>
+        </ul>
+      </section>
+
+      <section class="section" id="setup">
+        <div class="section-head">
+          <p class="eyebrow">SET IT UP</p>
+          <h2>Three steps, a few minutes.</h2>
+        </div>
+        <ol class="steps">
+          <li>
+            <span class="step-number">1</span>
+            <h3>Install the library</h3>
+            <pre><code>npm install @uug-ai/inspect</code></pre>
+          </li>
+          <li>
+            <span class="step-number">2</span>
+            <h3>Start it in your app</h3>
+            <pre><code><span class="k">import</span> { createInspect } <span class="k">from</span> <span class="s">'@uug-ai/inspect'</span>;
+
+createInspect({
+  endpoint: <span class="s">'https://inspect.example.com'</span>,
+  repo: <span class="s">'your-org/your-app'</span>,
+});</code></pre>
+          </li>
+          <li>
+            <span class="step-number">3</span>
+            <h3>Run the server</h3>
+            <p>One small, hardened container holds your GitHub token and files the issues. Configure it with environment variables.</p>
+            <pre><code>docker run -p 8080:8080 \
+  -e GITHUB_TOKEN=… \
+  -e INSPECT_DEFAULT_REPO=your-org/your-app \
+  -e INSPECT_ALLOWED_ORIGINS=https://app.example.com \
+  ghcr.io/uug-ai/inspect</code></pre>
+          </li>
+        </ol>
+        <div class="setup-links">
+          <a class="button primary" href="https://github.com/uug-ai/inspect">
+            <svg fill="currentColor" viewBox="3 3 18 18" aria-hidden="true"><path d="M12 3C7.03 3 3 7.13 3 12.23c0 4.08 2.58 7.53 6.15 8.75.45.08.62-.2.62-.44v-1.72c-2.26.43-2.85-.56-3.03-1.08-.1-.27-.54-1.08-.92-1.3-.32-.17-.77-.6-.01-.61.71-.01 1.21.67 1.38.94.81 1.4 2.1 1.01 2.62.77.08-.6.31-1 .57-1.23-2-.23-4.1-1.03-4.1-4.56 0-1 .35-1.83.92-2.48-.09-.23-.4-1.18.09-2.44 0 0 .75-.24 2.47.95a8.3 8.3 0 0 1 4.5 0c1.72-1.2 2.48-.95 2.48-.95.49 1.26.18 2.21.09 2.44.57.65.92 1.47.92 2.48 0 3.54-2.1 4.33-4.11 4.56.33.29.61.84.61 1.7v2.54c0 .24.17.53.62.44A9.1 9.1 0 0 0 21 12.23C21 7.13 16.97 3 12 3z"/></svg>
+            Read the docs on GitHub
+          </a>
+          <a class="button secondary" href="https://www.npmjs.com/package/@uug-ai/inspect">@uug-ai/inspect on npm</a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        <span class="brand small">UUG</span>
+        <span>Inspect is open source. Built for <a href="https://kerberos.io">Kerberos Hub</a>, usable anywhere.</span>
+        <a href="https://github.com/uug-ai/inspect">GitHub</a>
+      </div>
+    </footer>
+
+    <script src="https://unpkg.com/@uug-ai/inspect@0.1.0/dist/inspect.umd.cjs" integrity="sha384-r24+hJ7aCaLAy3MbpYkygUMYCsfb4YR57rlR5wpR5m9ptHp+KmBhPcGBFJtV+3CT" crossorigin="anonymous" defer></script>
+    <script src="/static/site.js" defer></script>
+  </body>
+</html>

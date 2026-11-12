@@ -18,6 +18,7 @@ import (
 	"github.com/uug-ai/inspect/server/internal/github"
 	"github.com/uug-ai/inspect/server/internal/httpapi"
 	"github.com/uug-ai/inspect/server/internal/issue"
+	"github.com/uug-ai/inspect/server/internal/site"
 	"github.com/uug-ai/inspect/server/internal/store"
 )
 
@@ -128,5 +129,6 @@ func build(cfg *config.Config, log *slog.Logger) http.Handler {
 		Previews: previews,
 		Limiter:  httpapi.NewRateLimiter(cfg.RateLimit),
 		Log:      log,
+		Site:     site.Register,
 	}).Handler()
 }
