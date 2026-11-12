@@ -22,6 +22,10 @@ import (
 )
 
 func main() {
+	if runFlags(os.Args[1:]) {
+		return
+	}
+
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(log)
 

@@ -31,3 +31,12 @@ cd client && npm install && npm run dev
 ```
 
 Once a report is submitted, the toast links to a preview of the markdown issue that would have been created.
+
+## Release and deploy
+
+Run **Actions → Release** (manual, choose `major`, `minor` or `patch`). One run, one version:
+
+1. **Server image:** `ghcr.io/uug-ai/inspect:<tag>`, signed and hardened, built by `uug-ai/workflows` (profile `standalone`; the smoke test is [`image/smoke-test.sh`](image/smoke-test.sh)). A PR in `uug-ai/gitops` then updates the image in `environments/production-bijlokehof/inspect/deployment.yaml`, which Argo CD deploys to **https://inspect.uug.ai**.
+2. **Browser library:** `@uug-ai/inspect@<version>` published to npmjs, with provenance.
+
+The workflow needs the `TOKEN` secret (for the gitops PR) and `NPM_ACCESS_TOKEN`, the same secrets the other uug-ai repos use.

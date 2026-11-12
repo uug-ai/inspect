@@ -21,7 +21,10 @@ document.getElementById('throw')!.addEventListener('click', () => {
 });
 
 // ?endpoint=http://localhost:8080 talks to a real inspect server; otherwise mock submits.
-const endpoint = new URLSearchParams(location.search).get('endpoint') ?? undefined;
+// ?repo=owner/name asks for a specific repo; by default the server's INSPECT_DEFAULT_REPO is used.
+const params = new URLSearchParams(location.search);
+const endpoint = params.get('endpoint') ?? undefined;
+const repo = params.get('repo') ?? undefined;
 const last = document.getElementById('last')!;
 
 async function mockSubmit(report: Report) {
@@ -35,7 +38,7 @@ async function mockSubmit(report: Report) {
 
 const inspect = createInspect({
   endpoint,
-  repo: 'uug-ai/inspect',
+  repo,
   onSubmit: endpoint ? undefined : mockSubmit,
   getContext: () => ({ version: '1.2.3', organisation: 'demo' }),
 });

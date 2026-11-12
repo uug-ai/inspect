@@ -107,6 +107,11 @@ func (c *Client) do(ctx context.Context, method, path string, in, out any) error
 		if json.Unmarshal(b, &e) == nil && e.Message != "" {
 			msg = e.Message
 		}
+		// GitHub answers 404 (not 403) when a token can't see a private repo; this
+		// header names the permission the call needed, which makes that debuggable.
+		if need := resp.Header.Get("X-Accepted-GitHub-Permissions"); need != "" && (resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusForbidden) {
+			msg += " (token needs " + need + " on this repo; check repository access, permissions, and org token policy)"
+		}
 		return &Error{Status: resp.StatusCode, Message: msg}
 	}
 	if out == nil {

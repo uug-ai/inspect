@@ -1,3 +1,4 @@
 data/
 inspect-server
 .env.local
+__debug_bin*

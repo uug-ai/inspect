@@ -1,0 +1,111 @@
+name: Release
+
+# One manual entrypoint for both artifacts, released under the same version:
+#   - ghcr.io/uug-ai/inspect: signed, hardened server image, plus a gitops PR
+#     that rolls it out to inspect.uug.ai (production-bijlokehof)
+#   - @uug-ai/inspect on npmjs: the browser library
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Which part of the version to bump
+        required: true
+        default: patch
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
+      existing_tag:
+        description: Existing release to retry (empty creates the next version)
+        type: string
+        default: ""
+      publish:
+        description: Publish after verification (false validates without creating a version)
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+jobs:
+  # Keep the release draft until the shared verification gates pass.
+  bump-release:
+    if: inputs.publish && inputs.existing_tag == ''
+    uses: uug-ai/workflows/.github/workflows/release-bump.yml@main
+    with:
+      bump: ${{ inputs.bump }}
+      draft: true
+    secrets: inherit
+
+  server-image:
+    needs: bump-release
+    if: ${{ always() && !cancelled() && (needs.bump-release.result == 'success' || needs.bump-release.result == 'skipped') }}
+    uses: uug-ai/workflows/.github/workflows/release-create.yml@main
+    with:
+      organization: uug-ai
+      project: inspect
+      tag: ${{ inputs.existing_tag || needs.bump-release.outputs.tag }}
+      sign: true
+      docker_context: server
+      hardened: true
+      # Long-running HTTP service; image/smoke-test.sh checks the static
+      # runtime offline and never contacts GitHub.
+      hardened_profile: standalone
+      hardened_workdir: /app
+      artifact_prefix: inspect
+      publish: ${{ inputs.publish }}
+      finalize_release: true
+      use_private_module_auth: false
+      runner_matrix: >-
+        [
+          {"architecture":"amd64","runner":"ubuntu-24.04"},
+          {"architecture":"arm64","runner":"ubuntu-24.04-arm"}
+        ]
+      create_gitops_pr: ${{ inputs.publish }}
+      gitops_repo: uug-ai/gitops
+      gitops_file: environments/production-bijlokehof/inspect/deployment.yaml
+      gitops_key: .spec.template.spec.containers[0].image
+      gitops_value: ghcr.io/uug-ai/inspect:${{ inputs.existing_tag || needs.bump-release.outputs.tag }}
+    secrets: inherit
+
+  npm-package:
+    needs: [bump-release, server-image]
+    if: ${{ always() && !cancelled() && inputs.publish && needs.server-image.result == 'success' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write # npm provenance
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.existing_tag || needs.bump-release.outputs.tag }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: https://registry.npmjs.org
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - run: npm ci
+      - name: Set version from release tag
+        env:
+          RELEASE_TAG: ${{ inputs.existing_tag || needs.bump-release.outputs.tag }}
+        run: npm version "${RELEASE_TAG#v}" --no-git-tag-version --allow-same-version
+      - run: npm run build
+      - name: Publish (skipped if this version is already on npm)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          name=$(node -p "require('./package.json').name")
+          version=$(node -p "require('./package.json').version")
+          if npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "$name@$version is already published"
+            exit 0
+          fi
+          npm publish --access public --provenance

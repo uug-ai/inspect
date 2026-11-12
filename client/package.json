@@ -2,6 +2,15 @@
   "name": "@uug-ai/inspect",
   "version": "0.1.0",
   "description": "Point, highlight, report: capture or record part of a web page, annotate it, and file it as a GitHub issue.",
+  "keywords": [
+    "bug-report",
+    "screenshot",
+    "screen-recording",
+    "annotation",
+    "github-issues",
+    "feedback"
+  ],
+  "homepage": "https://github.com/uug-ai/inspect/tree/main/client#readme",
   "type": "module",
   "main": "./dist/inspect.umd.cjs",
   "module": "./dist/inspect.js",
@@ -16,6 +25,9 @@
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "sideEffects": false,
   "repository": {
     "type": "git",

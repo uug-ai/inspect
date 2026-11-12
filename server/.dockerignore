@@ -1,6 +1,5 @@
-data/
-*.md
-.git
-Dockerfile
-.env
-.env.*
+**
+!go.mod
+!*.go
+!internal/
+!internal/**
