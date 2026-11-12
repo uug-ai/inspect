@@ -119,6 +119,16 @@ export class Annotator {
     return false;
   }
 
+  /** Small preview (with annotations) for the screenshot strip. */
+  thumbnail(maxEdge = 160): string {
+    const scale = Math.min(1, maxEdge / Math.max(this.canvas.width, this.canvas.height));
+    const out = document.createElement('canvas');
+    out.width = Math.max(1, Math.round(this.canvas.width * scale));
+    out.height = Math.max(1, Math.round(this.canvas.height * scale));
+    out.getContext('2d')!.drawImage(this.canvas, 0, 0, out.width, out.height);
+    return out.toDataURL('image/jpeg', 0.75);
+  }
+
   /**
    * The annotated screenshot, ready to upload. WebP is several times smaller than
    * PNG for UI screenshots, which speeds up both the upload and the GitHub commit;

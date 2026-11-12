@@ -177,6 +177,36 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .ix-swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--ix-fg); }
 .ix-tools .ix-text-btn { width: auto; padding: 0 10px; gap: 6px; display: inline-flex; font-size: 13px; }
 
+/* Screenshot strip (several screenshots in one report) */
+.ix-shots {
+  display: flex; align-items: center; gap: 8px; padding: 10px 12px; overflow-x: auto;
+  border-top: 1px solid var(--ix-border); background: var(--ix-bg);
+}
+.ix-shot-wrap { position: relative; flex: none; }
+.ix-shot {
+  display: block; position: relative; width: 72px; height: 48px; padding: 0; border-radius: 6px; overflow: hidden;
+  border: 2px solid var(--ix-border); background: var(--ix-bg-subtle);
+}
+.ix-shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ix-shot[aria-pressed="true"] { border-color: var(--ix-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ix-accent) 22%, transparent); }
+.ix-shot-n {
+  position: absolute; left: 3px; bottom: 3px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px;
+  background: rgba(0, 0, 0, .7); color: #fff; font-size: 10px; line-height: 16px; text-align: center;
+}
+.ix-shot-remove {
+  position: absolute; top: -7px; right: -7px; width: 20px; height: 20px; padding: 0; border-radius: 50%;
+  display: grid; place-items: center; border: 2px solid var(--ix-bg); background: var(--ix-chrome); color: var(--ix-chrome-fg);
+}
+.ix-shot-remove .ix-icon { width: 11px; height: 11px; }
+.ix-shot-remove:hover { background: var(--ix-danger); }
+.ix-shot-label { margin-left: 6px; font-size: 12px; color: var(--ix-fg-muted); }
+.ix-shot-add {
+  flex: none; display: inline-flex; align-items: center; gap: 6px; height: 48px; padding: 0 12px; border-radius: 6px;
+  border: 1.5px dashed var(--ix-border); background: transparent; color: var(--ix-fg-muted); font-size: 13px; font-weight: 550;
+}
+.ix-shot-add:hover { border-color: var(--ix-accent); color: var(--ix-accent); }
+.ix-shot-add .ix-icon { width: 16px; height: 16px; }
+
 .ix-form { display: flex; flex-direction: column; gap: 14px; padding: 20px; overflow: auto; }
 .ix-form h2 { margin: 0; font-size: 17px; font-weight: 650; }
 .ix-form p.ix-sub { margin: -8px 0 0; color: var(--ix-fg-muted); font-size: 13px; }

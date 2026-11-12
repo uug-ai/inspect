@@ -19,6 +19,15 @@ interface Shortcut {
   label: string;
 }
 
+/** The server accepts up to five attachments per report. */
+const MAX_SHOTS = 5;
+
+interface Shot {
+  mode: 'region' | 'element';
+  selection: Selection;
+  annotator: Annotator;
+}
+
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 
 function parseShortcut(spec: string): Shortcut | null {
@@ -160,30 +169,35 @@ export class Controller implements Inspect {
       await this.report('note', {});
       return;
     }
+    if (mode === 'region' || mode === 'element') {
+      const shot = await this.captureShot(mode);
+      if (shot) await this.report('screenshot', { shots: [shot] });
+      return;
+    }
+
+    // Recording: one video per report; Retake records again.
     if (!(await this.ensureCapture())) return;
-
     for (;;) {
-      const selection =
-        mode === 'element'
-          ? await pickElement(this.layer, this.host)
-          : await selectRegion(this.layer, {
-              text: mode === 'record' ? 'Drag to select the area to record' : 'Drag to select an area',
-              allowFull: true,
-            });
+      const selection = await selectRegion(this.layer, { text: 'Drag to select the area to record', allowFull: true });
       if (!selection) return;
-
-      let result: 'submitted' | 'cancelled' | 'retake';
-      if (mode === 'record') {
-        const video = await this.recordRegion(selection.region);
-        if (!video) return;
-        result = await this.report('recording', { selection, video });
-      } else {
-        const frame = await this.grab(selection.region);
-        result = await this.report('screenshot', { selection, frame });
-      }
+      const video = await this.recordRegion(selection.region);
+      if (!video) return;
+      const result = await this.report('recording', { selection, video });
       if (result !== 'retake') return;
       if (!this.session.active && !(await this.ensureCapture())) return;
     }
+  }
+
+  /** Select an area or element and grab it. Null when the person cancels. */
+  private async captureShot(mode: 'region' | 'element'): Promise<Shot | null> {
+    if (!(await this.ensureCapture())) return null;
+    const selection =
+      mode === 'element'
+        ? await pickElement(this.layer, this.host)
+        : await selectRegion(this.layer, { text: 'Drag to select an area', allowFull: true });
+    if (!selection) return null;
+    const frame = await this.grab(selection.region);
+    return { mode, selection, annotator: new Annotator(frame) };
   }
 
   private async ensureCapture(): Promise<boolean> {
@@ -284,24 +298,43 @@ export class Controller implements Inspect {
 
   private async report(
     kind: ReportKind,
-    capture: { selection?: Selection; frame?: HTMLCanvasElement; video?: Blob },
+    capture: { shots?: Shot[]; selection?: Selection; video?: Blob },
   ): Promise<'submitted' | 'cancelled' | 'retake'> {
-    const context = await this.buildContext(capture.selection);
-    const annotator = capture.frame ? new Annotator(capture.frame) : undefined;
+    const shots = capture.shots ?? [];
+    // Context (region, selector) describes the first capture.
+    const context = await this.buildContext(shots[0]?.selection ?? capture.selection);
+    let active = 0;
     let values: FormValues | undefined;
     let error: string | undefined;
 
     for (;;) {
+      const annotators = shots.map((s) => s.annotator);
       const result = await openDialog(this.layer, {
         kind,
-        annotator,
+        shots: annotators,
+        active,
+        canAdd: kind === 'screenshot' && shots.length < MAX_SHOTS,
         video: capture.video,
         context: this.contextRows(context),
         canRetake: kind !== 'note',
         initial: values,
         error,
       });
-      if (result.action !== 'submit') return result.action === 'retake' ? 'retake' : 'cancelled';
+      // The dialog may have removed screenshots from `annotators`; keep `shots` in step.
+      for (let i = shots.length - 1; i >= 0; i--) if (!annotators.includes(shots[i].annotator)) shots.splice(i, 1);
+      error = undefined;
+
+      if (result.action === 'cancelled') return 'cancelled';
+      if (result.action === 'retake' && kind !== 'screenshot') return 'retake';
+      if (result.action === 'retake' || result.action === 'add') {
+        values = result.values;
+        const replacing = result.action === 'retake';
+        const index = replacing ? result.active : shots.length;
+        const shot = await this.captureShot(replacing ? shots[index].mode : result.mode);
+        if (shot) shots.splice(index, replacing ? 1 : 0, shot);
+        active = shot ? index : Math.min(replacing ? result.active : active, shots.length - 1);
+        continue;
+      }
       values = result.values;
 
       // The dialog is closed: don't keep the person waiting for GitHub. Stop sharing
@@ -310,7 +343,7 @@ export class Controller implements Inspect {
       const sending = toast(this.layer, { message: 'Sending report…', busy: true });
       try {
         const attachments: File[] = [];
-        if (annotator) attachments.push(await annotator.toFile());
+        for (const shot of shots) attachments.push(await shot.annotator.toFile());
         if (capture.video) {
           const ext = capture.video.type.includes('mp4') ? 'mp4' : 'webm';
           attachments.push(new File([capture.video], `recording.${ext}`, { type: capture.video.type }));
