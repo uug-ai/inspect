@@ -177,3 +177,7 @@ The layout is:
 - `internal/store` holds the GitHub-branch and local stores.
 - `internal/issue` covers validation, sniffing, body rendering and submission.
 - `internal/httpapi` covers HTTP, CORS, auth and rate limiting.
+
+## Landing page
+
+`GET /` serves the inspect.uug.ai landing page (files in `internal/site/web/`, embedded in the binary). Its "Try it on this page" demo runs the browser library from `/static/lib/inspect.js`, which the image build compiles from `client/`. That's why the image is built from the repository root: `docker build -f server/Dockerfile .`. For a working demo with `go run .`, run `scripts/sync-lib.sh` first.

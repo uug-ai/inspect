@@ -2,3 +2,5 @@ data/
 inspect-server
 .env.local
 __debug_bin*
+# Built from client/ by the Dockerfile (or scripts/sync-lib.sh for local dev)
+internal/site/web/lib/

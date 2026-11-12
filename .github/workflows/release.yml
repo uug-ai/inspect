@@ -49,7 +49,9 @@ jobs:
       project: inspect
       tag: ${{ inputs.existing_tag || needs.bump-release.outputs.tag }}
       sign: true
-      docker_context: server
+      # Repository root: the image embeds the browser library built from client/.
+      docker_context: "."
+      hardened_dockerfile: server/Dockerfile
       hardened: true
       # Long-running HTTP service; image/smoke-test.sh checks the static
       # runtime offline and never contacts GitHub.

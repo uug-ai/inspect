@@ -1,7 +1,18 @@
 # syntax=docker/dockerfile:1.7
 # Hardened image: static binary on scratch, runs as 65532, read-only friendly.
-# Built by uug-ai/workflows release-create (hardened, profile standalone),
-# with this directory (server/) as the build context.
+# Built by uug-ai/workflows release-create (hardened, profile standalone)
+# with the REPOSITORY ROOT as the build context (docker build -f server/Dockerfile .),
+# so the landing page can embed the browser library built from client/.
+
+# The browser library, served by the landing page at /static/lib/inspect.js,
+# so its "Try it" demo always runs the code of this release.
+FROM node:22.21.1-bookworm-slim@sha256:25b3eb23a00590b7499f2a2ce939322727fcce1b15fdd69754fcd09536a3ae2c AS client
+WORKDIR /client
+COPY client/package.json client/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY client/ ./
+RUN npx tsc --noEmit && npx vite build && test -s dist/inspect.umd.cjs
+
 FROM golang:1.26.11-bookworm@sha256:dc40a13b61304647ed7e5d581d246b86413dfc29d63c6d018310feb93cd98fc0 AS builder
 
 ENV GOTOOLCHAIN=local
@@ -9,11 +20,12 @@ ENV GOTOOLCHAIN=local
 WORKDIR /src
 
 # No third-party modules: the standard library only.
-COPY go.mod ./
+COPY server/go.mod ./
 RUN go mod verify
 
-COPY *.go ./
-COPY internal/ ./internal/
+COPY server/*.go ./
+COPY server/internal/ ./internal/
+COPY --from=client /client/dist/inspect.umd.cjs ./internal/site/web/lib/inspect.js
 ARG TARGETOS=linux
 ARG TARGETARCH
 RUN --mount=type=cache,target=/root/.cache/go-build,sharing=locked \

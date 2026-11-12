@@ -58,17 +58,32 @@ func TestRoutes(t *testing.T) {
 	}
 }
 
-// The page loads the library from unpkg; keep the CSP and the pinned, integrity-checked tag in sync.
-func TestIndexPinsLibrary(t *testing.T) {
+// The "Try it" demo runs the library embedded from client/ (server/Dockerfile).
+func TestIndexUsesEmbeddedLibrary(t *testing.T) {
 	index, err := files.ReadFile("web/index.html")
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := string(index)
-	if !strings.Contains(s, `src="https://unpkg.com/@uug-ai/inspect@0.`) || !strings.Contains(s, `integrity="sha384-`) {
-		t.Fatal("index.html must load a pinned @uug-ai/inspect version from unpkg with an integrity hash")
+	if !strings.Contains(string(index), `src="/static/lib/inspect.js"`) {
+		t.Fatal("index.html must load the embedded library from /static/lib/inspect.js")
 	}
-	if !strings.Contains(contentSecurityPolicy, "https://unpkg.com") {
-		t.Fatal("CSP must allow unpkg for the library")
+	if strings.Contains(contentSecurityPolicy, "https://") && strings.Contains(contentSecurityPolicy, "script-src 'self' https") {
+		t.Fatal("scripts must only come from this server")
+	}
+	// The image build embeds lib/inspect.js; local builds may not have it (scripts/sync-lib.sh).
+	if _, err := files.ReadFile("web/lib/inspect.js"); err != nil {
+		t.Skip("web/lib/inspect.js not built here; the Dockerfile builds it from client/")
+	}
+	mux := http.NewServeMux()
+	Register(mux)
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	res, err := http.Get(srv.URL + "/static/lib/inspect.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != 200 || !strings.Contains(res.Header.Get("Content-Type"), "javascript") {
+		t.Fatalf("lib: status %d, type %q", res.StatusCode, res.Header.Get("Content-Type"))
 	}
 }

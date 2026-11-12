@@ -12,12 +12,12 @@ import (
 //go:embed web
 var files embed.FS
 
-// contentSecurityPolicy allows only what the page uses: its own files, Google
-// Fonts, and the pinned @uug-ai/inspect build from unpkg (also checked with
-// Subresource Integrity). style-src needs 'unsafe-inline' because the library
-// injects its stylesheet into a Shadow DOM.
+// contentSecurityPolicy allows only what the page uses: its own files
+// (including the @uug-ai/inspect build embedded at lib/inspect.js) and Google
+// Fonts. style-src needs 'unsafe-inline' because the library injects its
+// stylesheet into a Shadow DOM.
 const contentSecurityPolicy = "default-src 'self'; " +
-	"script-src 'self' https://unpkg.com; " +
+	"script-src 'self'; " +
 	"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
 	"font-src https://fonts.gstatic.com; " +
 	"img-src 'self' data: blob:; " +

@@ -1,0 +1,16 @@
+# Build context is the repository root (server/Dockerfile). Send only what the
+# image build needs: the client sources for the embedded library, and the server.
+**
+!client/package.json
+!client/package-lock.json
+!client/tsconfig.json
+!client/vite.config.ts
+!client/src/
+!client/src/**
+!client/demo/
+!client/demo/**
+!server/go.mod
+!server/*.go
+!server/internal/
+!server/internal/**
+server/internal/site/web/lib/
