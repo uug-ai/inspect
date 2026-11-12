@@ -28,7 +28,7 @@ const repo = params.get('repo') ?? undefined;
 const last = document.getElementById('last')!;
 
 async function mockSubmit(report: Report) {
-  await new Promise((r) => setTimeout(r, 600));
+  await new Promise((r) => setTimeout(r, (window as unknown as { __delay?: number }).__delay ?? 600));
   const files = report.attachments.map((f) => `${f.name} (${f.type}, ${Math.round(f.size / 1024)} KB)`);
   last.textContent = JSON.stringify({ payload: report.payload, attachments: files }, null, 2);
   (window as unknown as { __lastReport: Report }).__lastReport = report;

@@ -80,19 +80,41 @@ export function recordingControls(
   };
 }
 
-export function toast(container: HTMLElement, opts: { message: string; href?: string; error?: boolean }): void {
-  const close = h('button', { type: 'button', 'aria-label': 'Dismiss' }, icon(icons.close));
-  const el = h(
-    'div',
-    { class: `ix-toast${opts.error ? ' ix-toast-error' : ''}`, role: 'status' },
-    icon(opts.error ? icons.alert : icons.check),
-    h('span', {}, opts.message),
-    opts.href ? h('a', { href: opts.href, target: '_blank', rel: 'noopener noreferrer' }, 'Open', icon(icons.external)) : null,
-    close,
-  );
+export interface ToastOptions {
+  message: string;
+  href?: string;
+  error?: boolean;
+  /** Show a spinner and stay until updated or removed (no auto-dismiss, no close button). */
+  busy?: boolean;
+}
+
+export interface Toast {
+  update(opts: ToastOptions): void;
+  remove(): void;
+}
+
+export function toast(container: HTMLElement, initial: ToastOptions): Toast {
+  const el = h('div', { role: 'status', 'aria-live': 'polite' });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const remove = () => {
+    clearTimeout(timer);
+    el.remove();
+  };
+  const render = (opts: ToastOptions) => {
+    clearTimeout(timer);
+    el.className = `ix-toast${opts.error ? ' ix-toast-error' : ''}${opts.busy ? ' ix-toast-busy' : ''}`;
+    const close = opts.busy ? null : h('button', { type: 'button', 'aria-label': 'Dismiss', onclick: remove }, icon(icons.close));
+    const parts: Node[] = [
+      opts.busy ? h('span', { class: 'ix-spin', 'aria-hidden': 'true' }) : icon(opts.error ? icons.alert : icons.check),
+      h('span', {}, opts.message),
+    ];
+    if (opts.href) parts.push(h('a', { href: opts.href, target: '_blank', rel: 'noopener noreferrer' }, 'Open', icon(icons.external)));
+    if (close) parts.push(close);
+    el.replaceChildren(...parts);
+    if (!opts.busy) timer = setTimeout(remove, opts.href ? 12000 : 6000);
+  };
   container.querySelectorAll('.ix-toast').forEach((t) => t.remove());
+  render(initial);
   container.append(el);
-  const remove = () => el.remove();
-  close.addEventListener('click', remove);
-  setTimeout(remove, opts.href ? 12000 : 6000);
+  return { update: render, remove };
 }

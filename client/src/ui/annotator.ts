@@ -12,6 +12,27 @@ type Shape =
   | { tool: 'text'; color: string; size: number; at: Pt; text: string }
   | { tool: 'blur'; block: number; a: Pt; b: Pt };
 
+const MAX_EDGE = 2560;
+const WEBP_QUALITY = 0.9;
+
+function encode(canvas: HTMLCanvasElement, type: string, quality?: number): Promise<Blob> {
+  return new Promise((resolve, reject) =>
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Could not encode the screenshot'))), type, quality),
+  );
+}
+
+function downscale(canvas: HTMLCanvasElement, maxEdge: number): HTMLCanvasElement {
+  const scale = maxEdge / Math.max(canvas.width, canvas.height);
+  if (scale >= 1) return canvas;
+  const out = document.createElement('canvas');
+  out.width = Math.round(canvas.width * scale);
+  out.height = Math.round(canvas.height * scale);
+  const ctx = out.getContext('2d')!;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(canvas, 0, 0, out.width, out.height);
+  return out;
+}
+
 const COLORS = ['#e5484d', '#f5a524', '#30a46c', '#3e63dd', '#18181b'];
 const TOOLS: Array<{ tool: Tool; label: string; key: string }> = [
   { tool: 'arrow', label: 'Arrow', key: 'a' },
@@ -98,13 +119,21 @@ export class Annotator {
     return false;
   }
 
-  toBlob(): Promise<Blob> {
+  /**
+   * The annotated screenshot, ready to upload. WebP is several times smaller than
+   * PNG for UI screenshots, which speeds up both the upload and the GitHub commit;
+   * browsers that can't encode WebP fall back to PNG. Very large captures are scaled
+   * down so their longest side is at most MAX_EDGE pixels.
+   */
+  async toFile(): Promise<File> {
     this.commitText();
     this.draft = null;
     this.render();
-    return new Promise((resolve, reject) =>
-      this.canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Could not encode screenshot'))), 'image/png'),
-    );
+    const source = downscale(this.canvas, MAX_EDGE);
+    let blob = await encode(source, 'image/webp', WEBP_QUALITY);
+    if (blob.type !== 'image/webp') blob = await encode(source, 'image/png');
+    const ext = blob.type === 'image/webp' ? 'webp' : 'png';
+    return new File([blob], `screenshot.${ext}`, { type: blob.type });
   }
 
   private setTool(tool: Tool): void {

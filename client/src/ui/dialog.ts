@@ -16,11 +16,14 @@ export interface DialogOptions {
   /** Rows shown in the "context" disclosure, so the user sees what gets sent. */
   context: Array<[string, string]>;
   canRetake: boolean;
-  /** Throw to show an error and keep the dialog open. */
-  submit: (values: FormValues) => Promise<void>;
+  /** Prefill the form, e.g. when reopening after a failed send. */
+  initial?: FormValues;
+  /** Error to show when the dialog opens (the previous send failed). */
+  error?: string;
 }
 
-export type DialogResult = 'submitted' | 'cancelled' | 'retake';
+/** The dialog closes as soon as the user submits; sending happens in the background. */
+export type DialogResult = { action: 'submit'; values: FormValues } | { action: 'cancelled' } | { action: 'retake' };
 
 const HEADINGS: Record<ReportKind, [string, string]> = {
   screenshot: ['Report an issue', 'Mark up the screenshot, then describe what went wrong.'],
@@ -31,7 +34,6 @@ const HEADINGS: Record<ReportKind, [string, string]> = {
 export function openDialog(container: HTMLElement, opts: DialogOptions): Promise<DialogResult> {
   return new Promise((resolve) => {
     let videoUrl: string | null = null;
-    let busy = false;
 
     const title = h('input', { id: 'ix-title', type: 'text', required: true, maxlength: 256, placeholder: 'Short summary', autocomplete: 'off' });
     const description = h('textarea', {
@@ -69,6 +71,11 @@ export function openDialog(container: HTMLElement, opts: DialogOptions): Promise
     );
     // Clicking the checkbox shouldn't toggle the disclosure.
     includeContext.addEventListener('click', (e) => e.stopPropagation());
+    if (opts.initial) {
+      title.value = opts.initial.title;
+      description.value = opts.initial.description;
+      includeContext.checked = opts.initial.includeContext;
+    }
 
     let stage: HTMLElement | null = null;
     if (opts.annotator) {
@@ -83,9 +90,12 @@ export function openDialog(container: HTMLElement, opts: DialogOptions): Promise
         h('div', { class: 'ix-canvas-wrap' }, h('video', { src: videoUrl, controls: true, autoplay: true, muted: true, playsinline: true })),
       );
     }
+    // The annotator's toolbar is reused when the dialog reopens after a failed send,
+    // so the Retake button is removed again on close.
+    let retake: HTMLButtonElement | null = null;
     if (stage && opts.canRetake) {
-      const retake = h('button', { type: 'button', class: 'ix-text-btn', title: 'Capture again' }, icon(icons.retake), 'Retake');
-      retake.addEventListener('click', () => close('retake'));
+      retake = h('button', { type: 'button', class: 'ix-text-btn', title: 'Capture again' }, icon(icons.retake), 'Retake');
+      retake.addEventListener('click', () => close({ action: 'retake' }));
       stage.querySelector('.ix-tools')!.append(retake);
     }
 
@@ -97,13 +107,14 @@ export function openDialog(container: HTMLElement, opts: DialogOptions): Promise
     );
     const backdrop = h('div', { class: 'ix-backdrop' }, dialog);
     container.append(backdrop);
+    if (opts.error) showError(opts.error);
     requestAnimationFrame(() => title.focus());
 
     const dirty = () => !!(title.value.trim() || description.value.trim());
     const close = (result: DialogResult) => {
-      if (busy) return;
-      if (result === 'cancelled' && dirty() && !window.confirm('Discard this report?')) return;
+      if (result.action === 'cancelled' && dirty() && !window.confirm('Discard this report?')) return;
       window.removeEventListener('keydown', onKey, true);
+      retake?.remove();
       backdrop.remove();
       if (videoUrl) URL.revokeObjectURL(videoUrl);
       resolve(result);
@@ -111,7 +122,7 @@ export function openDialog(container: HTMLElement, opts: DialogOptions): Promise
 
     const handleKey = (e: KeyboardEvent): boolean => {
       if (e.key === 'Escape') {
-        close('cancelled');
+        close({ action: 'cancelled' });
         return true;
       }
       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
@@ -136,33 +147,22 @@ export function openDialog(container: HTMLElement, opts: DialogOptions): Promise
       }
     };
     window.addEventListener('keydown', onKey, true);
-    cancelBtn.addEventListener('click', () => close('cancelled'));
+    cancelBtn.addEventListener('click', () => close({ action: 'cancelled' }));
     backdrop.addEventListener('pointerdown', (e) => {
-      if (e.target === backdrop) close('cancelled');
+      if (e.target === backdrop) close({ action: 'cancelled' });
     });
 
-    form.addEventListener('submit', async (e) => {
+    form.addEventListener('submit', (e) => {
       e.preventDefault();
-      if (busy) return;
       if (!title.value.trim()) {
         showError('Please add a title.');
         title.focus();
         return;
       }
-      busy = true;
-      error.hidden = true;
-      submitBtn.disabled = cancelBtn.disabled = true;
-      submitBtn.replaceChildren(h('span', { class: 'ix-spin' }), 'Creating…');
-      try {
-        await opts.submit({ title: title.value.trim(), description: description.value.trim(), includeContext: includeContext.checked });
-        busy = false;
-        close('submitted');
-      } catch (err) {
-        busy = false;
-        submitBtn.disabled = cancelBtn.disabled = false;
-        submitBtn.replaceChildren('Create issue');
-        showError(err instanceof Error ? err.message : String(err));
-      }
+      close({
+        action: 'submit',
+        values: { title: title.value.trim(), description: description.value.trim(), includeContext: includeContext.checked },
+      });
     });
 
     function showError(message: string) {

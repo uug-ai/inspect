@@ -9,7 +9,7 @@ A browser library for filing bug reports from inside a web app. The user capture
 - **Record**: record a video of an area or of the whole page. The page stays usable while recording.
 - **Note**: send a report without a capture.
 
-Screenshots open in an editor with arrow, rectangle, pen and text tools, plus **pixelate** for hiding faces, number plates and personal data before anything is uploaded. Each report includes the page URL, browser, viewport, recent console errors and warnings, and any metadata your app supplies. The user sees all of this in the dialog and can opt out.
+Screenshots open in an editor with arrow, rectangle, pen and text tools, plus **pixelate** for hiding faces, number plates and personal data before anything is uploaded. Clicking **Create issue** closes the dialog straight away; the report is sent in the background with a progress toast, which turns into a link to the new issue. If sending fails, the dialog reopens with everything the person entered and the error. Screenshots are uploaded as WebP (PNG where the browser can't encode WebP), several times smaller than PNG. Each report includes the page URL, browser, viewport, recent console errors and warnings, and any metadata your app supplies. The user sees all of this in the dialog and can opt out.
 
 The library uses no framework and has no runtime dependencies (about 14 KB gzipped). All of its UI lives in a Shadow DOM, so its styles don't affect the host app and the host app's styles don't affect it.
 

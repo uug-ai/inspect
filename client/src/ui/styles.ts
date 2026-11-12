@@ -225,6 +225,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .ix-toast .ix-icon { color: #4ade80; }
 .ix-toast.ix-toast-error .ix-icon { color: var(--ix-danger); }
+.ix-toast.ix-toast-busy { padding-right: 16px; }
+.ix-toast .ix-spin { flex: none; color: #a1a1aa; }
 .ix-toast a { color: inherit; display: inline-flex; align-items: center; gap: 4px; font-weight: 600; }
 .ix-toast a .ix-icon { color: inherit; width: 14px; height: 14px; }
 .ix-toast button { border: 0; background: transparent; color: #a1a1aa; display: grid; place-items: center; padding: 4px; border-radius: 6px; }

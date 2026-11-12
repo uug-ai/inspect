@@ -157,6 +157,8 @@ export class ScreenSession {
 }
 
 const MIME_CANDIDATES = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'];
+/** Plenty for UI recordings; halves upload size and time compared with 4 Mbit/s. */
+const VIDEO_BITRATE = 2_000_000;
 
 export class Recording {
   readonly mimeType: string;
@@ -166,7 +168,7 @@ export class Recording {
 
   constructor(stream: MediaStream, private readonly cleanup: () => void) {
     this.mimeType = MIME_CANDIDATES.find((m) => MediaRecorder.isTypeSupported(m)) ?? '';
-    this.recorder = new MediaRecorder(stream, this.mimeType ? { mimeType: this.mimeType, videoBitsPerSecond: 4_000_000 } : undefined);
+    this.recorder = new MediaRecorder(stream, this.mimeType ? { mimeType: this.mimeType, videoBitsPerSecond: VIDEO_BITRATE } : undefined);
     this.recorder.ondataavailable = (e) => e.data.size && this.chunks.push(e.data);
     this.done = new Promise((resolve) => {
       this.recorder.onstop = () => {

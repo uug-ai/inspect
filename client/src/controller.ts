@@ -288,42 +288,67 @@ export class Controller implements Inspect {
   ): Promise<'submitted' | 'cancelled' | 'retake'> {
     const context = await this.buildContext(capture.selection);
     const annotator = capture.frame ? new Annotator(capture.frame) : undefined;
+    let values: FormValues | undefined;
+    let error: string | undefined;
 
-    let submitted: { url?: string; number?: number } | null = null;
-    const result = await openDialog(this.layer, {
-      kind,
-      annotator,
-      video: capture.video,
-      context: this.contextRows(context),
-      canRetake: kind !== 'note',
-      submit: async (values: FormValues) => {
+    for (;;) {
+      const result = await openDialog(this.layer, {
+        kind,
+        annotator,
+        video: capture.video,
+        context: this.contextRows(context),
+        canRetake: kind !== 'note',
+        initial: values,
+        error,
+      });
+      if (result.action !== 'submit') return result.action === 'retake' ? 'retake' : 'cancelled';
+      values = result.values;
+
+      // The dialog is closed: don't keep the person waiting for GitHub. Stop sharing
+      // the tab right away and report progress in a toast instead.
+      this.session.release();
+      const sending = toast(this.layer, { message: 'Sending report…', busy: true });
+      try {
         const attachments: File[] = [];
-        if (annotator) attachments.push(new File([await annotator.toBlob()], 'screenshot.png', { type: 'image/png' }));
+        if (annotator) attachments.push(await annotator.toFile());
         if (capture.video) {
           const ext = capture.video.type.includes('mp4') ? 'mp4' : 'webm';
           attachments.push(new File([capture.video], `recording.${ext}`, { type: capture.video.type }));
         }
-        submitted = await submitReport(this.options, {
-          payload: {
-            title: values.title,
-            description: values.description,
-            kind,
-            repo: this.options.repo,
-            labels: this.options.labels,
-            context: values.includeContext ? context : { timestamp: context.timestamp },
-          },
-          attachments,
-        });
-      },
-    });
-
-    if (result === 'submitted') {
-      const s = submitted as { url?: string; number?: number } | null;
-      toast(this.layer, {
-        message: s?.number ? `Issue #${s.number} created` : 'Issue created',
-        href: s?.url,
-      });
+        const sent = await whileSending(() =>
+          submitReport(this.options, {
+            payload: {
+              title: values!.title,
+              description: values!.description,
+              kind,
+              repo: this.options.repo,
+              labels: this.options.labels,
+              context: values!.includeContext ? context : { timestamp: context.timestamp },
+            },
+            attachments,
+          }),
+        );
+        sending.update({ message: sent.number ? `Issue #${sent.number} created` : 'Issue created', href: sent.url });
+        return 'submitted';
+      } catch (err) {
+        // Reopen the report with everything the person entered, plus the error.
+        sending.remove();
+        error = err instanceof Error ? err.message : String(err);
+      }
     }
-    return result;
+  }
+}
+
+/** Warn before the page is closed while a report is still being sent. */
+async function whileSending<T>(send: () => Promise<T>): Promise<T> {
+  const warn = (e: BeforeUnloadEvent) => {
+    e.preventDefault();
+    e.returnValue = '';
+  };
+  window.addEventListener('beforeunload', warn);
+  try {
+    return await send();
+  } finally {
+    window.removeEventListener('beforeunload', warn);
   }
 }
