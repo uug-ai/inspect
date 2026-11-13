@@ -1,4 +1,4 @@
-import { requestAssist, serverCapabilities, submitReport } from './api';
+import { fetchRepoOptions, requestAssist, serverCapabilities, submitReport } from './api';
 import { CaptureUnsupportedError, Recording, ScreenSession } from './capture';
 import { ConsoleBuffer } from './console';
 import type { Inspect, InspectOptions, Rect, ReportContext, ReportKind } from './types';
@@ -106,6 +106,7 @@ export class Controller implements Inspect {
   open(): void {
     if (this.busyFlow || this.bar) return;
     void this.assistAvailable(); // warm the capabilities check before the dialog opens
+    void fetchRepoOptions(this.options); // and the labels/assignees for the pickers
     this.setLauncherVisible(false);
     this.bar = toolbar((mode) => this.start(mode), () => this.close(), this.shortcut?.label);
     this.layer.append(this.bar);
@@ -341,6 +342,7 @@ export class Controller implements Inspect {
         initial: values,
         error,
         assist,
+        repoOptions: fetchRepoOptions(this.options),
       });
       // The dialog may have removed screenshots from `annotators`; keep `shots` in step.
       for (let i = shots.length - 1; i >= 0; i--) if (!annotators.includes(shots[i].annotator)) shots.splice(i, 1);
@@ -377,7 +379,8 @@ export class Controller implements Inspect {
               description: values!.description,
               kind,
               repo: this.options.repo,
-              labels: this.options.labels,
+              labels: [...new Set([...(this.options.labels ?? []), ...values!.labels])],
+              assignees: values!.assignees,
               context: values!.includeContext ? context : { timestamp: context.timestamp },
             },
             attachments,

@@ -72,6 +72,19 @@ const inspect = createInspect({
   repo,
   onSubmit: endpoint ? undefined : mockSubmit,
   onAssist: endpoint ? undefined : mockAssist,
+  // With ?endpoint the server's repo labels and assignees are used; otherwise these samples.
+  onOptions: endpoint
+    ? undefined
+    : async () => ({
+        labels: [
+          { name: 'bug', color: 'd73a4a', description: "Something isn't working" },
+          { name: 'frontend', color: '1d76db', description: 'Hub web app' },
+          { name: 'backend', color: '0e8a16', description: 'API and workers' },
+          { name: 'ux', color: 'c5def5', description: 'Design and usability' },
+          { name: 'priority: high', color: 'b60205' },
+        ],
+        assignees: [{ login: 'cedricve' }, { login: 'kilianboute' }, { login: 'uug-ai-bot' }],
+      }),
   getContext: () => ({ version: '1.2.3', organisation: 'demo' }),
 });
 document.getElementById('open')!.addEventListener('click', () => inspect.open());

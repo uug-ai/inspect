@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/uug-ai/inspect/server/internal/assist"
+	"github.com/uug-ai/inspect/server/internal/options"
 )
 
 type fakeAssistant struct {
@@ -107,5 +108,39 @@ func TestAssist(t *testing.T) {
 				t.Errorf("got %d %q, want %d containing %q", rec.Code, errMsg(t, rec), tc.status, tc.msg)
 			}
 		})
+	}
+}
+
+type fixedRepoOptions struct{ repo string }
+
+func (f *fixedRepoOptions) Get(_ context.Context, repo string) (*options.Options, error) {
+	f.repo = repo
+	return &options.Options{Labels: []options.Label{{Name: "bug", Color: "d73a4a"}}, Assignees: []options.Assignee{{Login: "cedricve"}}}, nil
+}
+
+func TestRepoOptions(t *testing.T) {
+	get := func(s *Server, path string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Origin", "https://app.example.com")
+		rec := httptest.NewRecorder()
+		s.Handler().ServeHTTP(rec, req)
+		return rec
+	}
+	s, _ := newServer(t, nil)
+	f := &fixedRepoOptions{}
+	s.Options = f
+	rec := get(s, "/v1/options")
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"name":"bug"`) || !strings.Contains(rec.Body.String(), `"login":"cedricve"`) {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+	if f.repo != s.Cfg.DefaultRepo {
+		t.Errorf("repo %q, want default %q", f.repo, s.Cfg.DefaultRepo)
+	}
+	if rec := get(s, "/v1/options?repo=someone/else"); rec.Code != 400 {
+		t.Errorf("disallowed repo: %d", rec.Code)
+	}
+	s.Options = nil
+	if rec := get(s, "/v1/options"); rec.Code != 200 || strings.TrimSpace(rec.Body.String()) != `{"labels":[],"assignees":[]}` {
+		t.Errorf("picker off: %d %s", rec.Code, rec.Body)
 	}
 }

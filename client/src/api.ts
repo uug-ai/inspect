@@ -1,4 +1,4 @@
-import type { AssistDraft, AssistRequest, InspectOptions, Report, SubmitResult } from './types';
+import type { AssistDraft, AssistRequest, InspectOptions, RepoOptions, Report, SubmitResult } from './types';
 
 /** POST the report to the inspect server as multipart/form-data. */
 export async function submitReport(options: InspectOptions, report: Report): Promise<SubmitResult> {
@@ -86,4 +86,33 @@ export async function requestAssist(options: InspectOptions, request: AssistRequ
     throw new Error(data.error || `The writing assistant returned ${res.status}.`);
   }
   return { title: data.title, description: data.description };
+}
+
+const EMPTY: RepoOptions = { labels: [], assignees: [] };
+const repoOptionsCache = new Map<string, { at: number; value: Promise<RepoOptions> }>();
+const OPTIONS_TTL = 5 * 60 * 1000;
+
+/** The target repo's labels and assignable people (cached 5 minutes). Failures mean "none". */
+export function fetchRepoOptions(options: InspectOptions): Promise<RepoOptions> {
+  if (options.onOptions === false) return Promise.resolve(EMPTY);
+  if (typeof options.onOptions === 'function') return options.onOptions().catch(() => EMPTY);
+  const base = baseUrl(options);
+  if (!base) return Promise.resolve(EMPTY);
+  const key = `${base}|${options.repo ?? ''}`;
+  const cached = repoOptionsCache.get(key);
+  if (cached && Date.now() - cached.at < OPTIONS_TTL) return cached.value;
+  const value = (async (): Promise<RepoOptions> => {
+    try {
+      const headers = options.headers ? await options.headers() : {};
+      const query = options.repo ? `?repo=${encodeURIComponent(options.repo)}` : '';
+      const res = await fetch(`${base}/v1/options${query}`, { headers });
+      if (!res.ok) return EMPTY;
+      const data = (await res.json()) as Partial<RepoOptions>;
+      return { labels: data.labels ?? [], assignees: data.assignees ?? [] };
+    } catch {
+      return EMPTY;
+    }
+  })();
+  repoOptionsCache.set(key, { at: Date.now(), value });
+  return value;
 }

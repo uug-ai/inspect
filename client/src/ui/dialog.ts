@@ -1,12 +1,15 @@
-import type { ReportKind } from '../types';
+import type { RepoOptions, ReportKind } from '../types';
 import type { Annotator } from './annotator';
 import { h, icon } from './dom';
 import { icons } from './icons';
+import { picker } from './picker';
 
 export interface FormValues {
   title: string;
   description: string;
   includeContext: boolean;
+  labels: string[];
+  assignees: string[];
 }
 
 export type AddMode = 'region' | 'element';
@@ -32,6 +35,8 @@ export interface DialogOptions {
    * screenshots. Omit to hide the button.
    */
   assist?: (values: FormValues) => Promise<{ title: string; description: string }>;
+  /** Labels and assignees to offer; the pickers stay hidden until there's something to pick. */
+  repoOptions?: Promise<RepoOptions>;
 }
 
 /**
@@ -83,6 +88,18 @@ export function openDialog(container: HTMLElement, opts: DialogOptions): Promise
     let closed = false;
     let drafting = false;
 
+    // Labels and assignees, as on GitHub. Hidden until the repo's options arrive.
+    const labelPicker = picker({ id: 'ix-labels', label: 'Labels', placeholder: 'Add labels…', kind: 'label', selected: opts.initial?.labels });
+    const assigneePicker = picker({ id: 'ix-assignees', label: 'Assignees', placeholder: 'Assign people…', kind: 'user', selected: opts.initial?.assignees });
+    labelPicker.element.hidden = assigneePicker.element.hidden = true;
+    void opts.repoOptions?.then((o) => {
+      if (closed) return;
+      labelPicker.setItems(o.labels.map((l) => ({ value: l.name, color: l.color, hint: l.description })));
+      assigneePicker.setItems(o.assignees.map((a) => ({ value: a.login, avatar: a.avatarUrl })));
+      labelPicker.element.hidden = o.labels.length === 0;
+      assigneePicker.element.hidden = o.assignees.length === 0;
+    });
+
     const [heading, sub] = HEADINGS[opts.kind];
     const form = h(
       'form',
@@ -91,6 +108,8 @@ export function openDialog(container: HTMLElement, opts: DialogOptions): Promise
       h('p', { class: 'ix-sub' }, shots.length > 1 ? 'Mark up the screenshots, then describe what went wrong.' : sub),
       h('div', { class: 'ix-field' }, h('label', { for: 'ix-title' }, 'Title'), title),
       h('div', { class: 'ix-field ix-grow' }, h('label', { for: 'ix-desc' }, 'Description'), description, assistRow),
+      labelPicker.element,
+      assigneePicker.element,
       h(
         'details',
         { class: 'ix-context' },
@@ -117,6 +136,8 @@ export function openDialog(container: HTMLElement, opts: DialogOptions): Promise
       title: title.value.trim(),
       description: description.value.trim(),
       includeContext: includeContext.checked,
+      labels: labelPicker.selected(),
+      assignees: assigneePicker.selected(),
     });
 
     const setDrafting = (on: boolean) => {

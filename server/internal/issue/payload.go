@@ -23,6 +23,7 @@ const (
 	MaxTitle       = 256
 	MaxDescription = 20000
 	MaxLabels      = 20
+	MaxAssignees   = 10
 	MaxLabelLen    = 50
 
 	maxURL        = 2048
@@ -42,6 +43,7 @@ type Payload struct {
 	Kind        string   `json:"kind"`
 	Repo        string   `json:"repo"`
 	Labels      []string `json:"labels"`
+	Assignees   []string `json:"assignees"`
 	Context     Context  `json:"context"`
 }
 
@@ -125,6 +127,17 @@ func (p *Payload) Validate() error {
 	}
 
 	p.Repo = strings.TrimSpace(p.Repo)
+
+	if len(p.Assignees) > MaxAssignees {
+		return invalid("too many assignees (max %d)", MaxAssignees)
+	}
+	for i, a := range p.Assignees {
+		a = strings.TrimPrefix(strings.TrimSpace(a), "@")
+		if a == "" || len(a) > 39 {
+			return invalid("invalid assignee %q", a)
+		}
+		p.Assignees[i] = a
+	}
 
 	if len(p.Labels) > MaxLabels {
 		return invalid("too many labels (max %d)", MaxLabels)

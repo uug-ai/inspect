@@ -19,6 +19,7 @@ import (
 	"github.com/uug-ai/inspect/server/internal/github"
 	"github.com/uug-ai/inspect/server/internal/httpapi"
 	"github.com/uug-ai/inspect/server/internal/issue"
+	"github.com/uug-ai/inspect/server/internal/options"
 	"github.com/uug-ai/inspect/server/internal/site"
 	"github.com/uug-ai/inspect/server/internal/store"
 )
@@ -112,6 +113,12 @@ func build(cfg *config.Config, log *slog.Logger) http.Handler {
 		}
 	}
 
+	// Labels and assignees for the pickers come from GitHub (needs the token).
+	var repoOptions *options.Cache
+	if cfg.GitHubToken != "" {
+		repoOptions = &options.Cache{List: gh}
+	}
+
 	var previews *issue.Previews
 	if cfg.DryRun {
 		previews = issue.NewPreviews(100)
@@ -125,6 +132,7 @@ func build(cfg *config.Config, log *slog.Logger) http.Handler {
 			StoreFor: storeFor,
 			Previews: previews,
 			Log:      log,
+			Options:  optionalRepoOptions(repoOptions),
 		},
 		Local:    local,
 		Previews: previews,
@@ -133,6 +141,7 @@ func build(cfg *config.Config, log *slog.Logger) http.Handler {
 		Site:     site.Register,
 
 		Assist:        assistant(cfg, log),
+		Options:       optionalRepoOptions(repoOptions),
 		AssistLimiter: httpapi.NewRateLimiter(cfg.RateLimit),
 	}).Handler()
 }
@@ -154,5 +163,13 @@ func assistant(cfg *config.Config, log *slog.Logger) httpapi.Assistant {
 		return nil
 	}
 	log.Info("writing assistant enabled", "deployment", cfg.AzureOpenAIDeployment)
+	return c
+}
+
+// optionalRepoOptions avoids a typed-nil interface when the pickers are off.
+func optionalRepoOptions(c *options.Cache) issue.RepoOptions {
+	if c == nil {
+		return nil
+	}
 	return c
 }

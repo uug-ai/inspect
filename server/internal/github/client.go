@@ -136,9 +136,10 @@ func escapePath(p string) string {
 
 // IssueRequest is the body of POST /repos/{o}/{r}/issues.
 type IssueRequest struct {
-	Title  string   `json:"title"`
-	Body   string   `json:"body"`
-	Labels []string `json:"labels,omitempty"`
+	Title     string   `json:"title"`
+	Body      string   `json:"body"`
+	Labels    []string `json:"labels,omitempty"`
+	Assignees []string `json:"assignees,omitempty"`
 }
 
 // Issue is the subset of the issue response we use.
@@ -235,4 +236,52 @@ func (c *Client) PutFile(ctx context.Context, repo, branch, path, message string
 		return nil, err
 	}
 	return &out, nil
+}
+
+// Label is a repository label.
+type Label struct {
+	Name        string `json:"name"`
+	Color       string `json:"color"`
+	Description string `json:"description"`
+}
+
+// User is the subset of a GitHub user we use.
+type User struct {
+	Login     string `json:"login"`
+	AvatarURL string `json:"avatar_url"`
+}
+
+// maxPages bounds list calls (100 items per page).
+const maxPages = 5
+
+// ListLabels returns the repository's labels (up to 500).
+func (c *Client) ListLabels(ctx context.Context, repo string) ([]Label, error) {
+	var all []Label
+	for page := 1; page <= maxPages; page++ {
+		var batch []Label
+		if err := c.do(ctx, http.MethodGet, fmt.Sprintf("%s/labels?per_page=100&page=%d", repoPath(repo), page), nil, &batch); err != nil {
+			return nil, err
+		}
+		all = append(all, batch...)
+		if len(batch) < 100 {
+			break
+		}
+	}
+	return all, nil
+}
+
+// ListAssignees returns the users who can be assigned to issues in the repository (up to 500).
+func (c *Client) ListAssignees(ctx context.Context, repo string) ([]User, error) {
+	var all []User
+	for page := 1; page <= maxPages; page++ {
+		var batch []User
+		if err := c.do(ctx, http.MethodGet, fmt.Sprintf("%s/assignees?per_page=100&page=%d", repoPath(repo), page), nil, &batch); err != nil {
+			return nil, err
+		}
+		all = append(all, batch...)
+		if len(batch) < 100 {
+			break
+		}
+	}
+	return all, nil
 }
