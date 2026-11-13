@@ -1,6 +1,8 @@
 // Package assist drafts a GitHub issue (title and description, with acceptance
 // criteria and test cases) from a reporter's quick notes, screenshots and page
-// context, using the Azure OpenAI v1 Responses API with strict structured output.
+// context, using the Azure OpenAI v1 Chat Completions API with strict structured
+// output. Chat Completions works for regular deployments and for model-router
+// deployments (which don't support the Responses API).
 // The reporter reviews and edits the draft before filing the issue.
 package assist
 
@@ -58,7 +60,7 @@ type Config struct {
 	Endpoint        string
 	APIKey          string
 	Deployment      string // sent as `model`
-	ReasoningEffort string // optional: minimal, low, medium, high
+	ReasoningEffort string // optional: minimal, low, medium, high (reasoning models only; not for model-router)
 	HTTPClient      *http.Client
 }
 
@@ -83,7 +85,7 @@ func New(cfg Config) (*Client, error) {
 	if !strings.HasSuffix(base, "/openai/v1") {
 		base += "/openai/v1"
 	}
-	return &Client{url: base + "/responses", cfg: cfg}, nil
+	return &Client{url: base + "/chat/completions", cfg: cfg}, nil
 }
 
 const instructions = `You turn a quick bug report from someone using a web app into a clear GitHub issue that developers can act on.
@@ -129,65 +131,63 @@ var draftSchema = json.RawMessage(`{
   "additionalProperties": false
 }`)
 
+type imageURL struct {
+	URL    string `json:"url"`
+	Detail string `json:"detail,omitempty"`
+}
+
 type contentPart struct {
-	Type     string `json:"type"`
-	Text     string `json:"text,omitempty"`
-	ImageURL string `json:"image_url,omitempty"`
-	Detail   string `json:"detail,omitempty"`
+	Type     string    `json:"type"` // text | image_url
+	Text     string    `json:"text,omitempty"`
+	ImageURL *imageURL `json:"image_url,omitempty"`
+}
+
+type message struct {
+	Role    string `json:"role"`
+	Content any    `json:"content"` // string or []contentPart
+}
+
+type jsonSchemaFormat struct {
+	Type       string `json:"type"`
+	JSONSchema struct {
+		Name   string          `json:"name"`
+		Strict bool            `json:"strict"`
+		Schema json.RawMessage `json:"schema"`
+	} `json:"json_schema"`
 }
 
 type requestBody struct {
-	Model        string `json:"model"`
-	Instructions string `json:"instructions"`
-	Input        []struct {
-		Role    string        `json:"role"`
-		Content []contentPart `json:"content"`
-	} `json:"input"`
-	Text struct {
-		Format struct {
-			Type   string          `json:"type"`
-			Name   string          `json:"name"`
-			Schema json.RawMessage `json:"schema"`
-			Strict bool            `json:"strict"`
-		} `json:"format"`
-	} `json:"text"`
-	MaxOutputTokens int `json:"max_output_tokens"`
-	Reasoning       *struct {
-		Effort string `json:"effort"`
-	} `json:"reasoning,omitempty"`
-	Store bool `json:"store"`
+	Model               string           `json:"model"`
+	Messages            []message        `json:"messages"`
+	ResponseFormat      jsonSchemaFormat `json:"response_format"`
+	MaxCompletionTokens int              `json:"max_completion_tokens"`
+	ReasoningEffort     string           `json:"reasoning_effort,omitempty"`
+	Store               bool             `json:"store"`
 }
 
 // Draft asks the model for a title and description.
 func (c *Client) Draft(ctx context.Context, req Request) (*Draft, error) {
-	body := requestBody{
-		Model:           c.cfg.Deployment,
-		Instructions:    instructions,
-		MaxOutputTokens: maxOutputTokens,
-		Store:           false, // don't keep reports on the Azure side
-	}
-	body.Text.Format.Type = "json_schema"
-	body.Text.Format.Name = "issue_draft"
-	body.Text.Format.Schema = draftSchema
-	body.Text.Format.Strict = true
-	if c.cfg.ReasoningEffort != "" {
-		body.Reasoning = &struct {
-			Effort string `json:"effort"`
-		}{Effort: c.cfg.ReasoningEffort}
-	}
-
-	content := []contentPart{{Type: "input_text", Text: promptText(req)}}
+	content := []contentPart{{Type: "text", Text: promptText(req)}}
 	for _, img := range req.Images {
 		content = append(content, contentPart{
-			Type:     "input_image",
-			ImageURL: "data:" + img.ContentType + ";base64," + base64.StdEncoding.EncodeToString(img.Data),
-			Detail:   "high",
+			Type:     "image_url",
+			ImageURL: &imageURL{URL: "data:" + img.ContentType + ";base64," + base64.StdEncoding.EncodeToString(img.Data), Detail: "high"},
 		})
 	}
-	body.Input = append(body.Input, struct {
-		Role    string        `json:"role"`
-		Content []contentPart `json:"content"`
-	}{Role: "user", Content: content})
+	body := requestBody{
+		Model: c.cfg.Deployment,
+		Messages: []message{
+			{Role: "system", Content: instructions},
+			{Role: "user", Content: content},
+		},
+		MaxCompletionTokens: maxOutputTokens,
+		ReasoningEffort:     c.cfg.ReasoningEffort,
+		Store:               false, // don't keep reports on the Azure side
+	}
+	body.ResponseFormat.Type = "json_schema"
+	body.ResponseFormat.JSONSchema.Name = "issue_draft"
+	body.ResponseFormat.JSONSchema.Strict = true
+	body.ResponseFormat.JSONSchema.Schema = draftSchema
 
 	raw, err := json.Marshal(body)
 	if err != nil {
@@ -255,45 +255,32 @@ func apiMessage(raw []byte) string {
 
 func parse(raw []byte) (*Draft, error) {
 	var body struct {
-		Status            string `json:"status"`
-		IncompleteDetails *struct {
-			Reason string `json:"reason"`
-		} `json:"incomplete_details"`
-		Output []struct {
-			Type    string `json:"type"`
-			Content []struct {
-				Type    string `json:"type"`
-				Text    string `json:"text"`
-				Refusal string `json:"refusal"`
-			} `json:"content"`
-		} `json:"output"`
+		Choices []struct {
+			FinishReason string `json:"finish_reason"`
+			Message      struct {
+				Content *string `json:"content"`
+				Refusal *string `json:"refusal"`
+			} `json:"message"`
+		} `json:"choices"`
 	}
 	if err := json.Unmarshal(raw, &body); err != nil {
 		return nil, fmt.Errorf("assist: parse response: %w", err)
 	}
-	if body.Status != "" && body.Status != "completed" {
-		reason := body.Status
-		if body.IncompleteDetails != nil && body.IncompleteDetails.Reason != "" {
-			reason += ": " + body.IncompleteDetails.Reason
-		}
-		return nil, fmt.Errorf("%w (%s)", ErrUnavailable, reason)
+	if len(body.Choices) == 0 {
+		return nil, fmt.Errorf("%w (no choices)", ErrUnavailable)
 	}
-	var text strings.Builder
-	for _, item := range body.Output {
-		if item.Type != "message" {
-			continue
-		}
-		for _, c := range item.Content {
-			if c.Type == "refusal" {
-				return nil, fmt.Errorf("%w (refused)", ErrUnavailable)
-			}
-			if c.Type == "output_text" {
-				text.WriteString(c.Text)
-			}
-		}
+	choice := body.Choices[0]
+	if choice.Message.Refusal != nil && *choice.Message.Refusal != "" {
+		return nil, fmt.Errorf("%w (refused)", ErrUnavailable)
+	}
+	if choice.FinishReason != "" && choice.FinishReason != "stop" {
+		return nil, fmt.Errorf("%w (%s)", ErrUnavailable, choice.FinishReason)
+	}
+	if choice.Message.Content == nil {
+		return nil, fmt.Errorf("%w (empty output)", ErrUnavailable)
 	}
 	var d Draft
-	if err := json.Unmarshal([]byte(text.String()), &d); err != nil {
+	if err := json.Unmarshal([]byte(*choice.Message.Content), &d); err != nil {
 		return nil, fmt.Errorf("%w (output is not the expected JSON)", ErrUnavailable)
 	}
 	d.Title = truncate(strings.TrimSpace(d.Title), maxTitle)

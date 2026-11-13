@@ -16,8 +16,8 @@ import (
 
 func azureReply(text string) string {
 	b, _ := json.Marshal(map[string]any{
-		"status": "completed",
-		"output": []any{map[string]any{"type": "message", "content": []any{map[string]any{"type": "output_text", "text": text}}}},
+		"model":   "gpt-5-mini-2025-08-07",
+		"choices": []any{map[string]any{"finish_reason": "stop", "message": map[string]any{"role": "assistant", "content": text}}},
 	})
 	return string(b)
 }
@@ -25,7 +25,7 @@ func azureReply(text string) string {
 func TestDraftRequestAndResponse(t *testing.T) {
 	var got map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/openai/v1/responses" {
+		if r.URL.Path != "/openai/v1/chat/completions" {
 			t.Errorf("path %q", r.URL.Path)
 		}
 		if r.Header.Get("api-key") != "k" {
@@ -57,17 +57,19 @@ func TestDraftRequestAndResponse(t *testing.T) {
 		t.Fatalf("draft %+v", d)
 	}
 
-	if got["model"] != "gpt-x" || got["store"] != false {
-		t.Errorf("model/store: %v %v", got["model"], got["store"])
+	if got["model"] != "gpt-x" || got["store"] != false || got["reasoning_effort"] != "low" {
+		t.Errorf("model/store/reasoning: %v %v %v", got["model"], got["store"], got["reasoning_effort"])
 	}
-	if r, _ := got["reasoning"].(map[string]any); r["effort"] != "low" {
-		t.Errorf("reasoning %v", got["reasoning"])
+	format := got["response_format"].(map[string]any)
+	if format["type"] != "json_schema" || format["json_schema"].(map[string]any)["strict"] != true {
+		t.Errorf("response_format %v", format)
 	}
-	format := got["text"].(map[string]any)["format"].(map[string]any)
-	if format["type"] != "json_schema" || format["strict"] != true {
-		t.Errorf("format %v", format)
+	msgs := got["messages"].([]any)
+	system := msgs[0].(map[string]any)
+	if system["role"] != "system" || !strings.Contains(system["content"].(string), "## Acceptance criteria") {
+		t.Error("system message should hold the instructions, incl. acceptance criteria")
 	}
-	content := got["input"].([]any)[0].(map[string]any)["content"].([]any)
+	content := msgs[1].(map[string]any)["content"].([]any)
 	text := content[0].(map[string]any)["text"].(string)
 	for _, want := range []string{"counter stays 0", "Title: (none)", "https://app.example/dashboard", "HTTP 500 /api/cases", "1 screenshot(s)"} {
 		if !strings.Contains(text, want) {
@@ -75,11 +77,8 @@ func TestDraftRequestAndResponse(t *testing.T) {
 		}
 	}
 	img := content[1].(map[string]any)
-	if img["type"] != "input_image" || !strings.HasPrefix(img["image_url"].(string), "data:image/webp;base64,") {
+	if img["type"] != "image_url" || !strings.HasPrefix(img["image_url"].(map[string]any)["url"].(string), "data:image/webp;base64,") {
 		t.Errorf("image part %v", img)
-	}
-	if !strings.Contains(got["instructions"].(string), "## Acceptance criteria") {
-		t.Error("instructions should ask for acceptance criteria")
 	}
 }
 
@@ -109,8 +108,9 @@ func TestDraftErrors(t *testing.T) {
 		body   string
 	}{
 		"bad request":  {400, `{"error":{"message":"bad image"}}`},
-		"refusal":      {200, `{"status":"completed","output":[{"type":"message","content":[{"type":"refusal","refusal":"no"}]}]}`},
-		"incomplete":   {200, `{"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"}}`},
+		"refusal":      {200, `{"choices":[{"finish_reason":"stop","message":{"content":null,"refusal":"no"}}]}`},
+		"incomplete":   {200, `{"choices":[{"finish_reason":"length","message":{"content":"{\"title\":"}}]}`},
+		"no choices":   {200, `{"choices":[]}`},
 		"not json":     {200, azureReply(`not json`)},
 		"empty fields": {200, azureReply(`{"title":"","description":""}`)},
 	}
