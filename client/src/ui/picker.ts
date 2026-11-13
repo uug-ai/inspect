@@ -105,7 +105,10 @@ export function picker(opts: { id: string; label: string; placeholder: string; s
   const open = (show: boolean) => {
     list.hidden = !show;
     input.setAttribute('aria-expanded', String(show));
-    if (show) renderList();
+    if (show) {
+      renderList();
+      list.scrollIntoView({ block: 'nearest' });
+    }
   };
   input.addEventListener('focus', () => open(true));
   input.addEventListener('blur', () => open(false));

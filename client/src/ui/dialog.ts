@@ -150,7 +150,7 @@ export function openDialog(container: HTMLElement, opts: DialogOptions): Promise
       );
       form.setAttribute('aria-busy', String(on));
     };
-    assistBtn.addEventListener('click', async () => {
+    const runAssist = async () => {
       if (!opts.assist || drafting) return;
       const before = values();
       if (!before.title && !before.description && !shots.length) {
@@ -179,6 +179,29 @@ export function openDialog(container: HTMLElement, opts: DialogOptions): Promise
         if (!closed) showError(err instanceof Error ? err.message : String(err));
       } finally {
         if (!closed) setDrafting(false);
+      }
+    };
+    assistBtn.addEventListener('click', () => void runAssist());
+
+    // Enter: submit when title and description are both filled in; otherwise let
+    // the assistant fill them ("Write it for me"), or point at what's missing.
+    const missing = () => (!title.value.trim() ? title : !description.value.trim() ? description : null);
+    const proceed = () => {
+      if (drafting) return;
+      const gap = missing();
+      if (!gap) {
+        form.requestSubmit();
+      } else if (opts.assist) {
+        void runAssist();
+      } else {
+        showError(gap === title ? 'Please add a title.' : 'Please add a description.');
+        gap.focus();
+      }
+    };
+    title.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.isComposing) {
+        e.preventDefault(); // no implicit form submission
+        proceed();
       }
     });
 
@@ -230,14 +253,46 @@ export function openDialog(container: HTMLElement, opts: DialogOptions): Promise
         }
         return wrap;
       });
-      const adds = opts.canAdd
-        ? [
-            h('button', { type: 'button', class: 'ix-shot-add', title: 'Add a screenshot of another area', onclick: () => close({ action: 'add', values: values(), mode: 'region' }) }, icon(icons.region), 'Area'),
-            h('button', { type: 'button', class: 'ix-shot-add', title: 'Add a screenshot of an element', onclick: () => close({ action: 'add', values: values(), mode: 'element' }) }, icon(icons.element), 'Element'),
-          ]
-        : [];
-      strip.replaceChildren(...thumbs, ...(adds.length ? [h('span', { class: 'ix-shot-label' }, 'Add')] : []), ...adds);
+      strip.replaceChildren(...thumbs, ...(opts.canAdd ? [addMenu()] : []));
     };
+
+    // "+" next to the thumbnails: choose Area or Element for another screenshot.
+    let menuOpen: HTMLElement | null = null;
+    const closeMenu = () => {
+      if (!menuOpen) return;
+      menuOpen.hidden = true;
+      menuOpen.previousElementSibling?.setAttribute('aria-expanded', 'false');
+      menuOpen = null;
+    };
+    function addMenu(): HTMLElement {
+      const item = (mode: 'region' | 'element', svg: string, name: string, hint: string) =>
+        h(
+          'button',
+          { type: 'button', role: 'menuitem', class: 'ix-add-item', onclick: () => close({ action: 'add', values: values(), mode }) },
+          icon(svg),
+          h('span', {}, h('b', {}, name), h('small', {}, hint)),
+        );
+      const menu = h(
+        'div',
+        { class: 'ix-add-menu', role: 'menu', hidden: true },
+        item('region', icons.region, 'Area', 'Drag to select part of the page'),
+        item('element', icons.element, 'Element', 'Click an element on the page'),
+      );
+      const plus = h(
+        'button',
+        { type: 'button', class: 'ix-shot-plus', title: 'Add another screenshot', 'aria-label': 'Add another screenshot', 'aria-haspopup': 'menu', 'aria-expanded': 'false' },
+        icon(icons.plus),
+      );
+      plus.addEventListener('click', () => {
+        if (menuOpen === menu) return closeMenu();
+        closeMenu();
+        menu.hidden = false;
+        plus.setAttribute('aria-expanded', 'true');
+        menuOpen = menu;
+        (menu.querySelector('button') as HTMLButtonElement).focus();
+      });
+      return h('div', { class: 'ix-add-wrap' }, plus, menu);
+    }
 
     if (shots.length) {
       stage = h('div', { class: 'ix-stage' });
@@ -279,11 +334,12 @@ export function openDialog(container: HTMLElement, opts: DialogOptions): Promise
 
     const handleKey = (e: KeyboardEvent): boolean => {
       if (e.key === 'Escape') {
-        close({ action: 'cancelled' });
+        if (menuOpen) closeMenu();
+        else close({ action: 'cancelled' });
         return true;
       }
       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-        form.requestSubmit();
+        proceed();
         return true;
       }
       const typing = e.composedPath().some((n) => n instanceof HTMLInputElement || n instanceof HTMLTextAreaElement);
@@ -306,14 +362,17 @@ export function openDialog(container: HTMLElement, opts: DialogOptions): Promise
     window.addEventListener('keydown', onKey, true);
     cancelBtn.addEventListener('click', () => close({ action: 'cancelled' }));
     backdrop.addEventListener('pointerdown', (e) => {
+      if (menuOpen && !e.composedPath().some((n) => n instanceof HTMLElement && n.classList.contains('ix-add-wrap'))) closeMenu();
       if (e.target === backdrop) close({ action: 'cancelled' });
     });
 
     form.addEventListener('submit', (e) => {
       e.preventDefault();
-      if (!title.value.trim()) {
-        showError('Please add a title.');
-        title.focus();
+      const gap = missing();
+      if (gap) {
+        const what = gap === title ? 'a title' : 'a description';
+        showError(opts.assist ? `Add ${what}, or use "Write it for me" to draft it.` : `Please add ${what}.`);
+        gap.focus();
         return;
       }
       close({ action: 'submit', values: values() });
