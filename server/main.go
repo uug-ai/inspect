@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/uug-ai/inspect/server/internal/assist"
 	"github.com/uug-ai/inspect/server/internal/config"
 	"github.com/uug-ai/inspect/server/internal/github"
 	"github.com/uug-ai/inspect/server/internal/httpapi"
@@ -130,5 +131,28 @@ func build(cfg *config.Config, log *slog.Logger) http.Handler {
 		Limiter:  httpapi.NewRateLimiter(cfg.RateLimit),
 		Log:      log,
 		Site:     site.Register,
+
+		Assist:        assistant(cfg, log),
+		AssistLimiter: httpapi.NewRateLimiter(cfg.RateLimit),
 	}).Handler()
+}
+
+// assistant returns the Azure OpenAI writing assistant, or nil when it isn't configured.
+func assistant(cfg *config.Config, log *slog.Logger) httpapi.Assistant {
+	if !cfg.AssistEnabled() {
+		log.Info("writing assistant disabled (set AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY and AZURE_OPENAI_DEPLOYMENT to enable)")
+		return nil
+	}
+	c, err := assist.New(assist.Config{
+		Endpoint:        cfg.AzureOpenAIEndpoint,
+		APIKey:          cfg.AzureOpenAIAPIKey,
+		Deployment:      cfg.AzureOpenAIDeployment,
+		ReasoningEffort: cfg.AzureOpenAIReasoningEffort,
+	})
+	if err != nil {
+		log.Error("writing assistant disabled", "err", err)
+		return nil
+	}
+	log.Info("writing assistant enabled", "deployment", cfg.AzureOpenAIDeployment)
+	return c
 }

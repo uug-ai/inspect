@@ -1,4 +1,4 @@
-import { createInspect, type Report } from '../src';
+import { createInspect, type AssistRequest, type Report } from '../src';
 
 // Animated canvas so screenshots/recordings have something "live" in them.
 const canvas = document.getElementById('cam') as HTMLCanvasElement;
@@ -36,10 +36,42 @@ async function mockSubmit(report: Report) {
   return { number: 42, url: 'https://github.com/uug-ai/inspect/issues/42' };
 }
 
+// Mock "Write it for me" (the real one runs on the inspect server with Azure OpenAI).
+async function mockAssist(req: AssistRequest) {
+  await new Promise((r) => setTimeout(r, 1200));
+  const notes = (req.description || req.title).trim();
+  return {
+    title: `Events card: ${notes.slice(0, 60) || 'chart fails to load'}`,
+    description: [
+      '## Summary',
+      `${notes || 'The chart on the Events card fails to load.'} (${req.images.length} screenshot(s) attached.)`,
+      '',
+      '## Steps to reproduce',
+      `1. Open ${req.context.url ?? 'the page'}.`,
+      '2. Look at the Events today card.',
+      '',
+      '## Expected behaviour',
+      'The chart renders with today\'s events.',
+      '',
+      '## Actual behaviour',
+      'The card shows "Chart failed to load (NaN%)".',
+      '',
+      '## Acceptance criteria',
+      '- [ ] The chart renders when the events API answers.',
+      '- [ ] A failed request shows a retry message instead of NaN%.',
+      '',
+      '## Test cases',
+      '1. Given events exist, when the dashboard loads, then the chart shows them.',
+      '2. Given the events API returns 500, when the dashboard loads, then a retry message is shown.',
+    ].join('\n'),
+  };
+}
+
 const inspect = createInspect({
   endpoint,
   repo,
   onSubmit: endpoint ? undefined : mockSubmit,
+  onAssist: endpoint ? undefined : mockAssist,
   getContext: () => ({ version: '1.2.3', organisation: 'demo' }),
 });
 document.getElementById('open')!.addEventListener('click', () => inspect.open());

@@ -45,6 +45,22 @@ export interface Report {
   attachments: File[];
 }
 
+/** What the writing assistant gets: the notes so far, screenshots and (if allowed) context. */
+export interface AssistRequest {
+  title: string;
+  description: string;
+  kind: ReportKind;
+  context: ReportContext;
+  /** Annotated screenshots (WebP/PNG). */
+  images: File[];
+}
+
+/** A suggested title and markdown description, for the reporter to review. */
+export interface AssistDraft {
+  title: string;
+  description: string;
+}
+
 export interface SubmitResult {
   number?: number;
   url?: string;
@@ -66,6 +82,12 @@ export interface InspectOptions {
   getContext?: () => Record<string, unknown> | Promise<Record<string, unknown>>;
   /** Replace the built-in HTTP submit, e.g. to route through your own API. */
   onSubmit?: (report: Report) => Promise<SubmitResult>;
+  /**
+   * Writing assistant ("Write it for me"). By default the button appears when the
+   * inspect server has Azure OpenAI configured (GET /v1/capabilities). Pass a function
+   * to use your own, or `false` to hide the button.
+   */
+  onAssist?: ((request: AssistRequest) => Promise<AssistDraft>) | false;
   /** Show the floating launcher button. Default `true`. */
   launcher?: boolean | { position?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left' };
   /** Keyboard shortcut that opens the toolbar. Default `alt+shift+i`; `false` disables it. */

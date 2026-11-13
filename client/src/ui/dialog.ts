@@ -27,6 +27,11 @@ export interface DialogOptions {
   initial?: FormValues;
   /** Error to show when the dialog opens (the previous send failed). */
   error?: string;
+  /**
+   * "Write it for me": drafts a title and description from the current notes and
+   * screenshots. Omit to hide the button.
+   */
+  assist?: (values: FormValues) => Promise<{ title: string; description: string }>;
 }
 
 /**
@@ -62,6 +67,22 @@ export function openDialog(container: HTMLElement, opts: DialogOptions): Promise
     const submitBtn = h('button', { type: 'submit', class: 'ix-btn ix-primary' }, 'Create issue');
     const cancelBtn = h('button', { type: 'button', class: 'ix-btn' }, 'Cancel');
 
+    // "Write it for me": fills title and description from the notes and screenshots.
+    const assistBtn = h(
+      'button',
+      {
+        type: 'button',
+        class: 'ix-assist',
+        title: 'Uses AI: sends your notes, screenshots and (if included) the technical context to the issue server, which asks Azure OpenAI for a draft. Review it before creating the issue.',
+      },
+      icon(icons.sparkle),
+      h('span', {}, 'Write it for me'),
+    );
+    const assistNote = h('span', { class: 'ix-assist-note', hidden: true });
+    const assistRow = opts.assist ? h('div', { class: 'ix-assist-row' }, assistBtn, assistNote) : null;
+    let closed = false;
+    let drafting = false;
+
     const [heading, sub] = HEADINGS[opts.kind];
     const form = h(
       'form',
@@ -69,7 +90,7 @@ export function openDialog(container: HTMLElement, opts: DialogOptions): Promise
       h('h2', { id: 'ix-heading' }, heading),
       h('p', { class: 'ix-sub' }, shots.length > 1 ? 'Mark up the screenshots, then describe what went wrong.' : sub),
       h('div', { class: 'ix-field' }, h('label', { for: 'ix-title' }, 'Title'), title),
-      h('div', { class: 'ix-field' }, h('label', { for: 'ix-desc' }, 'Description'), description),
+      h('div', { class: 'ix-field ix-grow' }, h('label', { for: 'ix-desc' }, 'Description'), description, assistRow),
       h(
         'details',
         { class: 'ix-context' },
@@ -96,6 +117,48 @@ export function openDialog(container: HTMLElement, opts: DialogOptions): Promise
       title: title.value.trim(),
       description: description.value.trim(),
       includeContext: includeContext.checked,
+    });
+
+    const setDrafting = (on: boolean) => {
+      drafting = on;
+      title.disabled = description.disabled = submitBtn.disabled = on;
+      assistBtn.disabled = on;
+      assistBtn.replaceChildren(
+        on ? h('span', { class: 'ix-spin', 'aria-hidden': 'true' }) : icon(icons.sparkle),
+        h('span', {}, on ? 'Writing…' : 'Write it for me'),
+      );
+      form.setAttribute('aria-busy', String(on));
+    };
+    assistBtn.addEventListener('click', async () => {
+      if (!opts.assist || drafting) return;
+      const before = values();
+      if (!before.title && !before.description && !shots.length) {
+        showError('Write a few words first, then let the assistant expand them.');
+        description.focus();
+        return;
+      }
+      error.hidden = true;
+      assistNote.hidden = true;
+      setDrafting(true);
+      try {
+        const draft = await opts.assist(before);
+        if (closed) return;
+        title.value = draft.title;
+        description.value = draft.description;
+        description.scrollTop = 0;
+        const undo = h('button', { type: 'button', class: 'ix-link' }, 'Undo');
+        undo.addEventListener('click', () => {
+          title.value = before.title;
+          description.value = before.description;
+          assistNote.hidden = true;
+        });
+        assistNote.replaceChildren('Drafted by AI. Check it before creating the issue. ', undo);
+        assistNote.hidden = false;
+      } catch (err) {
+        if (!closed) showError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (!closed) setDrafting(false);
+      }
     });
 
     // Retake lives in the active screenshot's toolbar. Toolbars are reused when the
@@ -183,7 +246,9 @@ export function openDialog(container: HTMLElement, opts: DialogOptions): Promise
 
     const dirty = () => !!(title.value.trim() || description.value.trim() || shots.length > 1);
     const close = (result: DialogResult) => {
+      if (drafting && result.action === 'submit') return;
       if (result.action === 'cancelled' && dirty() && !window.confirm('Discard this report?')) return;
+      closed = true;
       window.removeEventListener('keydown', onKey, true);
       retake?.remove();
       backdrop.remove();

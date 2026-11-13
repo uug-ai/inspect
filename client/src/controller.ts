@@ -1,4 +1,4 @@
-import { submitReport } from './api';
+import { requestAssist, serverCapabilities, submitReport } from './api';
 import { CaptureUnsupportedError, Recording, ScreenSession } from './capture';
 import { ConsoleBuffer } from './console';
 import type { Inspect, InspectOptions, Rect, ReportContext, ReportKind } from './types';
@@ -105,6 +105,7 @@ export class Controller implements Inspect {
 
   open(): void {
     if (this.busyFlow || this.bar) return;
+    void this.assistAvailable(); // warm the capabilities check before the dialog opens
     this.setLauncherVisible(false);
     this.bar = toolbar((mode) => this.start(mode), () => this.close(), this.shortcut?.label);
     this.layer.append(this.bar);
@@ -296,6 +297,15 @@ export class Controller implements Inspect {
     return rows;
   }
 
+  /** Whether to offer "Write it for me": a custom onAssist, or the server has it on. */
+  private assistAvailable(): Promise<boolean> {
+    const custom = this.options.onAssist;
+    if (custom === false) return Promise.resolve(false);
+    if (typeof custom === 'function') return Promise.resolve(true);
+    if (this.options.onSubmit && !this.options.endpoint) return Promise.resolve(false);
+    return serverCapabilities(this.options).then((c) => c.assist);
+  }
+
   private async report(
     kind: ReportKind,
     capture: { shots?: Shot[]; selection?: Selection; video?: Blob },
@@ -306,6 +316,17 @@ export class Controller implements Inspect {
     let active = 0;
     let values: FormValues | undefined;
     let error: string | undefined;
+    const canAssist = await this.assistAvailable();
+    const assist = canAssist
+      ? async (v: FormValues) =>
+          requestAssist(this.options, {
+            title: v.title,
+            description: v.description,
+            kind,
+            context: v.includeContext ? context : { timestamp: context.timestamp },
+            images: await Promise.all(shots.map((s) => s.annotator.toFile())),
+          })
+      : undefined;
 
     for (;;) {
       const annotators = shots.map((s) => s.annotator);
@@ -319,6 +340,7 @@ export class Controller implements Inspect {
         canRetake: kind !== 'note',
         initial: values,
         error,
+        assist,
       });
       // The dialog may have removed screenshots from `annotators`; keep `shots` in step.
       for (let i = shots.length - 1; i >= 0; i--) if (!annotators.includes(shots[i].annotator)) shots.splice(i, 1);

@@ -45,6 +45,18 @@ type Config struct {
 	DryRun   bool
 
 	PublicURL string // base URL of this service, used for local assets and dry-run previews
+
+	// Azure OpenAI for the "write it for me" assistant (POST /v1/assist).
+	// Assist is enabled only when endpoint, API key and deployment are all set.
+	AzureOpenAIEndpoint        string
+	AzureOpenAIAPIKey          string
+	AzureOpenAIDeployment      string
+	AzureOpenAIReasoningEffort string
+}
+
+// AssistEnabled reports whether the Azure OpenAI assistant is configured.
+func (c *Config) AssistEnabled() bool {
+	return c.AzureOpenAIEndpoint != "" && c.AzureOpenAIAPIKey != "" && c.AzureOpenAIDeployment != ""
 }
 
 // Load reads the configuration using getenv (typically os.Getenv).
@@ -67,6 +79,11 @@ func Load(getenv func(string) string) (*Config, error) {
 		LocalDir:      get("INSPECT_LOCAL_DIR", "./data"),
 		AllowedLabels: splitList(getenv("INSPECT_ALLOWED_LABELS")),
 		APIKeys:       splitList(getenv("INSPECT_API_KEYS")),
+
+		AzureOpenAIEndpoint:        strings.TrimRight(strings.TrimSpace(getenv("AZURE_OPENAI_ENDPOINT")), "/"),
+		AzureOpenAIAPIKey:          strings.TrimSpace(getenv("AZURE_OPENAI_API_KEY")),
+		AzureOpenAIDeployment:      strings.TrimSpace(getenv("AZURE_OPENAI_DEPLOYMENT")),
+		AzureOpenAIReasoningEffort: strings.TrimSpace(getenv("AZURE_OPENAI_REASONING_EFFORT")),
 	}
 
 	var errs []error

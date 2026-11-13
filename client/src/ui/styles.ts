@@ -219,9 +219,26 @@ button { font: inherit; color: inherit; cursor: pointer; }
   border: 1px solid var(--ix-border); border-radius: 8px; padding: 8px 10px; outline: none;
 }
 .ix-field textarea { min-height: 140px; resize: vertical; }
+/* The description fills the dialog's free height (drafts are long). */
+.ix-field.ix-grow { flex: 1 1 auto; min-height: 0; }
+.ix-field.ix-grow textarea { flex: 1 1 auto; }
+.ix-dialog.ix-note .ix-field.ix-grow textarea { flex: none; }
 .ix-field input:focus, .ix-field textarea:focus {
   border-color: var(--ix-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ix-accent) 22%, transparent);
 }
+.ix-assist-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 2px; }
+.ix-assist {
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--ix-accent) 35%, var(--ix-border));
+  background: color-mix(in srgb, var(--ix-accent) 8%, var(--ix-bg)); color: var(--ix-accent); font-size: 12.5px; font-weight: 600;
+}
+.ix-assist:hover { background: color-mix(in srgb, var(--ix-accent) 15%, var(--ix-bg)); }
+.ix-assist:disabled { cursor: progress; opacity: .85; }
+.ix-assist .ix-icon { width: 15px; height: 15px; }
+.ix-assist .ix-spin { width: 12px; height: 12px; }
+.ix-assist-note { font-size: 12px; color: var(--ix-fg-muted); }
+.ix-link { border: 0; background: none; padding: 0; color: var(--ix-accent); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+.ix-field textarea:disabled, .ix-field input:disabled { opacity: .6; }
 .ix-context { border: 1px solid var(--ix-border); border-radius: 8px; font-size: 13px; }
 .ix-context summary { padding: 8px 10px; cursor: pointer; display: flex; align-items: center; gap: 8px; list-style: none; }
 .ix-context summary::-webkit-details-marker { display: none; }

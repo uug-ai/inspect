@@ -14,7 +14,9 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/uug-ai/inspect/server/internal/assist"
 	"github.com/uug-ai/inspect/server/internal/config"
 	"github.com/uug-ai/inspect/server/internal/issue"
 	"github.com/uug-ai/inspect/server/internal/store"
@@ -34,6 +36,11 @@ type Submitter interface {
 	Submit(ctx context.Context, p *issue.Payload, files []issue.File) (*issue.Result, error)
 }
 
+// Assistant drafts an issue from the reporter's notes; implemented by *assist.Client.
+type Assistant interface {
+	Draft(ctx context.Context, req assist.Request) (*assist.Draft, error)
+}
+
 // Server holds the HTTP handlers.
 type Server struct {
 	Cfg      *config.Config
@@ -44,6 +51,9 @@ type Server struct {
 	Log      *slog.Logger
 	// Site registers the landing page routes (GET / and GET /static/); optional.
 	Site func(*http.ServeMux)
+	// Assist drafts titles and descriptions with AI; nil disables POST /v1/assist.
+	Assist        Assistant
+	AssistLimiter *RateLimiter
 }
 
 // Handler returns the routed handler.
@@ -55,6 +65,9 @@ func (s *Server) Handler() http.Handler {
 	})
 	mux.HandleFunc("OPTIONS /v1/issues", s.preflight)
 	mux.HandleFunc("POST /v1/issues", s.createIssue)
+	mux.HandleFunc("GET /v1/capabilities", s.capabilities)
+	mux.HandleFunc("OPTIONS /v1/assist", s.preflight)
+	mux.HandleFunc("POST /v1/assist", s.assist)
 	if s.Local != nil {
 		mux.Handle("GET "+store.AssetsPrefix, s.Local.Handler())
 	}
@@ -131,9 +144,14 @@ func (s *Server) createIssue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	r.Body = http.MaxBytesReader(w, r.Body, s.Cfg.MaxUploadBytes+multipartOverhead)
-	payload, files, status, err := s.readForm(r)
+	raw, files, status, err := s.readForm(r)
 	if err != nil {
 		writeError(w, status, err.Error())
+		return
+	}
+	payload, err := issue.ParsePayload(raw)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -152,15 +170,15 @@ func (s *Server) createIssue(w http.ResponseWriter, r *http.Request) {
 }
 
 // readForm streams the multipart body, enforcing count and size limits and
-// sniffing every attachment's real type.
-func (s *Server) readForm(r *http.Request) (*issue.Payload, []issue.File, int, error) {
+// sniffing every attachment's real type. It returns the raw payload JSON.
+func (s *Server) readForm(r *http.Request) ([]byte, []issue.File, int, error) {
 	mr, err := r.MultipartReader()
 	if err != nil {
 		return nil, nil, http.StatusBadRequest, errors.New("expected multipart/form-data body")
 	}
 
 	var (
-		payload *issue.Payload
+		payload []byte
 		files   []issue.File
 		total   int64
 	)
@@ -181,9 +199,7 @@ func (s *Server) readForm(r *http.Request) (*issue.Payload, []issue.File, int, e
 			if err != nil {
 				return nil, nil, bodyErrStatus(err), fmt.Errorf("payload: %w", bodyErr(err))
 			}
-			if payload, err = issue.ParsePayload(b); err != nil {
-				return nil, nil, http.StatusBadRequest, err
-			}
+			payload = b
 		case "attachment":
 			if len(files) >= MaxAttachments {
 				return nil, nil, http.StatusBadRequest, fmt.Errorf("too many attachments (max %d)", MaxAttachments)
@@ -214,6 +230,95 @@ func (s *Server) readForm(r *http.Request) (*issue.Payload, []issue.File, int, e
 		return nil, nil, http.StatusBadRequest, errors.New("missing payload field")
 	}
 	return payload, files, 0, nil
+}
+
+// capabilities tells the browser library which optional features are on.
+func (s *Server) capabilities(w http.ResponseWriter, r *http.Request) {
+	if !s.cors(w, r) {
+		writeError(w, http.StatusForbidden, "origin not allowed")
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, http.StatusOK, map[string]bool{"assist": s.Assist != nil})
+}
+
+// assist drafts a title and description from the reporter's notes, screenshots
+// and context. Nothing is stored and no issue is created.
+func (s *Server) assist(w http.ResponseWriter, r *http.Request) {
+	if !s.cors(w, r) {
+		writeError(w, http.StatusForbidden, "origin not allowed")
+		return
+	}
+	if s.Assist == nil {
+		writeError(w, http.StatusNotFound, "the writing assistant is not enabled on this server")
+		return
+	}
+	if s.AssistLimiter == nil {
+		s.AssistLimiter = NewRateLimiter(s.Cfg.RateLimit)
+	}
+	if ok, wait := s.AssistLimiter.Allow(clientIP(r, s.Cfg.TrustProxy)); !ok {
+		w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(wait.Seconds()))))
+		writeError(w, http.StatusTooManyRequests, "too many requests, try again in a minute")
+		return
+	}
+	if !s.authorized(r) {
+		w.Header().Set("WWW-Authenticate", `Bearer realm="inspect"`)
+		writeError(w, http.StatusUnauthorized, "missing or invalid API key")
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, s.Cfg.MaxUploadBytes+multipartOverhead)
+	raw, files, status, err := s.readForm(r)
+	if err != nil {
+		writeError(w, status, err.Error())
+		return
+	}
+	req, err := parseAssistPayload(raw)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	for i, f := range files {
+		if issue.IsVideo(f.ContentType) {
+			writeError(w, http.StatusUnsupportedMediaType, fmt.Sprintf("attachment %d: the assistant takes screenshots only", i+1))
+			return
+		}
+		req.Images = append(req.Images, assist.Image{Data: f.Data, ContentType: f.ContentType})
+	}
+	if strings.TrimSpace(req.Title) == "" && strings.TrimSpace(req.Description) == "" && len(req.Images) == 0 {
+		writeError(w, http.StatusBadRequest, "write a few words or add a screenshot first")
+		return
+	}
+
+	start := time.Now()
+	draft, err := s.Assist.Draft(r.Context(), *req)
+	if err != nil {
+		s.Log.Error("assist failed", "err", err, "images", len(req.Images), "ms", time.Since(start).Milliseconds())
+		writeError(w, http.StatusBadGateway, "the writing assistant couldn't help this time; try again or write it yourself")
+		return
+	}
+	s.Log.Info("assist drafted", "images", len(req.Images), "ms", time.Since(start).Milliseconds())
+	writeJSON(w, http.StatusOK, draft)
+}
+
+// parseAssistPayload accepts the same JSON as an issue, but the title may be
+// empty (the assistant writes it). Context limits are applied as for issues.
+func parseAssistPayload(raw []byte) (*assist.Request, error) {
+	var p issue.Payload
+	if err := json.Unmarshal(raw, &p); err != nil {
+		return nil, fmt.Errorf("payload: invalid JSON: %v", err)
+	}
+	title := strings.TrimSpace(p.Title)
+	if p.Title == "" {
+		p.Title = "untitled" // only to pass validation; the real title stays empty
+	}
+	if p.Kind == "" {
+		p.Kind = issue.KindScreenshot
+	}
+	if err := p.Validate(); err != nil {
+		return nil, err
+	}
+	return &assist.Request{Title: title, Description: p.Description, Kind: p.Kind, Context: p.Context}, nil
 }
 
 var errTooLarge = errors.New("too large")

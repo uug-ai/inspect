@@ -2,6 +2,8 @@ import { Controller } from './controller';
 import type { Inspect, InspectOptions } from './types';
 
 export type {
+  AssistDraft,
+  AssistRequest,
   ConsoleEntry,
   Inspect,
   InspectOptions,

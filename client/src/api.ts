@@ -1,4 +1,4 @@
-import type { InspectOptions, Report, SubmitResult } from './types';
+import type { AssistDraft, AssistRequest, InspectOptions, Report, SubmitResult } from './types';
 
 /** POST the report to the inspect server as multipart/form-data. */
 export async function submitReport(options: InspectOptions, report: Report): Promise<SubmitResult> {
@@ -27,4 +27,63 @@ export async function submitReport(options: InspectOptions, report: Report): Pro
     throw new Error(data.error || `The issue server returned ${res.status}.`);
   }
   return { number: data.number, url: data.url };
+}
+
+function baseUrl(options: InspectOptions): string {
+  return (options.endpoint ?? '').replace(/\/+$/, '');
+}
+
+const capabilities = new Map<string, Promise<{ assist: boolean }>>();
+
+/** Which optional features the server has on. Cached per endpoint; failures mean "none". */
+export function serverCapabilities(options: InspectOptions): Promise<{ assist: boolean }> {
+  const base = baseUrl(options);
+  if (!base) return Promise.resolve({ assist: false });
+  let p = capabilities.get(base);
+  if (!p) {
+    p = (async () => {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 4000);
+        const headers = options.headers ? await options.headers() : {};
+        const res = await fetch(`${base}/v1/capabilities`, { headers, signal: controller.signal });
+        clearTimeout(timer);
+        if (!res.ok) return { assist: false };
+        const data = (await res.json()) as { assist?: boolean };
+        return { assist: data.assist === true };
+      } catch {
+        return { assist: false };
+      }
+    })();
+    capabilities.set(base, p);
+  }
+  return p;
+}
+
+/** Ask the inspect server's writing assistant for a title and description. */
+export async function requestAssist(options: InspectOptions, request: AssistRequest): Promise<AssistDraft> {
+  if (typeof options.onAssist === 'function') return options.onAssist(request);
+  const body = new FormData();
+  body.append(
+    'payload',
+    JSON.stringify({ title: request.title, description: request.description, kind: request.kind, context: request.context }),
+  );
+  for (const image of request.images) body.append('attachment', image, image.name);
+  const headers = options.headers ? await options.headers() : {};
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl(options)}/v1/assist`, { method: 'POST', body, headers });
+  } catch {
+    throw new Error('Could not reach the writing assistant. Check your connection and try again.');
+  }
+  let data: { error?: string; title?: string; description?: string } = {};
+  try {
+    data = await res.json();
+  } catch {
+    // fall through
+  }
+  if (!res.ok || !data.title || !data.description) {
+    throw new Error(data.error || `The writing assistant returned ${res.status}.`);
+  }
+  return { title: data.title, description: data.description };
 }

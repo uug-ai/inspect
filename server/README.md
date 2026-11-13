@@ -181,3 +181,16 @@ The layout is:
 ## Landing page
 
 `GET /` serves the inspect.uug.ai landing page (files in `internal/site/web/`, embedded in the binary). Its "Try it on this page" demo runs the browser library from `/static/lib/inspect.js`, which the image build compiles from `client/`. That's why the image is built from the repository root: `docker build -f server/Dockerfile .`. For a working demo with `go run .`, run `scripts/sync-lib.sh` first.
+
+## Writing assistant ("Write it for me")
+
+When Azure OpenAI is configured, the report dialog shows **Write it for me**. The browser sends what the reporter has so far (title, description, annotated screenshots and, if they left it ticked, the technical context) to `POST /v1/assist`. The server asks Azure OpenAI (v1 Responses API, strict JSON output, `store: false`) for a title and a markdown description with Summary, Steps to reproduce, Expected and Actual behaviour, Acceptance criteria and Test cases. The draft fills the form; the reporter edits it, or undoes it, before creating the issue. Nothing is stored and no issue is created by this call.
+
+| Variable | Description |
+|---|---|
+| `AZURE_OPENAI_ENDPOINT` | Azure OpenAI or AI Foundry resource URL, e.g. `https://<resource>.services.ai.azure.com/openai/v1`. |
+| `AZURE_OPENAI_API_KEY` | API key for that resource. |
+| `AZURE_OPENAI_DEPLOYMENT` | Model deployment name (vision-capable), sent as `model`. |
+| `AZURE_OPENAI_REASONING_EFFORT` | Optional: `minimal`, `low`, `medium` or `high`, for reasoning models. |
+
+The assistant is on only when the first three are set; `GET /v1/capabilities` tells the browser library (`{"assist": true}`), so the button only appears when it works. `/v1/assist` has the same origin, API-key and size checks as `/v1/issues`, its own per-IP rate limit (`INSPECT_RATE_LIMIT`), and accepts screenshots only (no videos).
