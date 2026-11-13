@@ -112,6 +112,10 @@ func (f *fakeGitHub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"path":     path,
 			"html_url": "https://github.com/acme/assets/blob/inspect-assets/" + path,
 		}})
+	case r.Method == "GET" && strings.HasSuffix(p, "/labels"):
+		reply(200, []map[string]string{{"name": "frontend", "color": "1d76db"}, {"name": "backend", "color": "0e8a16"}})
+	case r.Method == "GET" && strings.HasSuffix(p, "/assignees"):
+		reply(200, []map[string]string{{"login": "octocat", "avatar_url": "https://avatars.example/octocat"}})
 	case r.Method == "POST" && strings.HasSuffix(p, "/issues"):
 		f.issueRepo = strings.TrimSuffix(strings.TrimPrefix(p, "/repos/"), "/issues")
 		f.issues = append(f.issues, in)

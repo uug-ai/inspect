@@ -19,6 +19,7 @@ import (
 	"github.com/uug-ai/inspect/server/internal/assist"
 	"github.com/uug-ai/inspect/server/internal/config"
 	"github.com/uug-ai/inspect/server/internal/issue"
+	"github.com/uug-ai/inspect/server/internal/options"
 	"github.com/uug-ai/inspect/server/internal/store"
 )
 
@@ -54,6 +55,8 @@ type Server struct {
 	// Assist drafts titles and descriptions with AI; nil disables POST /v1/assist.
 	Assist        Assistant
 	AssistLimiter *RateLimiter
+	// Options serves labels and assignees for the pickers; nil returns empty lists.
+	Options issue.RepoOptions
 }
 
 // Handler returns the routed handler.
@@ -66,6 +69,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("OPTIONS /v1/issues", s.preflight)
 	mux.HandleFunc("POST /v1/issues", s.createIssue)
 	mux.HandleFunc("GET /v1/capabilities", s.capabilities)
+	mux.HandleFunc("GET /v1/options", s.repoOptions)
 	mux.HandleFunc("OPTIONS /v1/assist", s.preflight)
 	mux.HandleFunc("POST /v1/assist", s.assist)
 	if s.Local != nil {
@@ -240,6 +244,40 @@ func (s *Server) capabilities(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusOK, map[string]bool{"assist": s.Assist != nil})
+}
+
+// repoOptions returns the labels and assignable users of the target repository
+// (?repo=owner/name, default INSPECT_DEFAULT_REPO) for the report dialog's pickers.
+func (s *Server) repoOptions(w http.ResponseWriter, r *http.Request) {
+	if !s.cors(w, r) {
+		writeError(w, http.StatusForbidden, "origin not allowed")
+		return
+	}
+	if !s.authorized(r) {
+		w.Header().Set("WWW-Authenticate", `Bearer realm="inspect"`)
+		writeError(w, http.StatusUnauthorized, "missing or invalid API key")
+		return
+	}
+	repo := s.Cfg.DefaultRepo
+	if q := strings.TrimSpace(r.URL.Query().Get("repo")); q != "" {
+		if !s.Cfg.RepoAllowed(q) {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("repo %q is not allowed", q))
+			return
+		}
+		repo = q
+	}
+	w.Header().Set("Cache-Control", "private, max-age=60")
+	if s.Options == nil {
+		writeJSON(w, http.StatusOK, options.Options{Labels: []options.Label{}, Assignees: []options.Assignee{}})
+		return
+	}
+	o, err := s.Options.Get(r.Context(), repo)
+	if err != nil {
+		s.Log.Error("options failed", "repo", repo, "err", err)
+		writeError(w, http.StatusBadGateway, "could not load labels and assignees")
+		return
+	}
+	writeJSON(w, http.StatusOK, o)
 }
 
 // assist drafts a title and description from the reporter's notes, screenshots

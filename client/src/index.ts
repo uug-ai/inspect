@@ -8,6 +8,7 @@ export type {
   Inspect,
   InspectOptions,
   Rect,
+  RepoOptions,
   Report,
   ReportContext,
   ReportKind,

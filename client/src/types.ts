@@ -36,6 +36,7 @@ export interface ReportPayload {
   kind: ReportKind;
   repo?: string;
   labels?: string[];
+  assignees?: string[];
   context: ReportContext;
 }
 
@@ -43,6 +44,12 @@ export interface Report {
   payload: ReportPayload;
   /** Annotated screenshot (PNG) or recording (WebM/MP4). */
   attachments: File[];
+}
+
+/** Labels and assignable people of the target repository, for the pickers. */
+export interface RepoOptions {
+  labels: Array<{ name: string; color?: string; description?: string }>;
+  assignees: Array<{ login: string; avatarUrl?: string }>;
 }
 
 /** What the writing assistant gets: the notes so far, screenshots and (if allowed) context. */
@@ -88,6 +95,12 @@ export interface InspectOptions {
    * to use your own, or `false` to hide the button.
    */
   onAssist?: ((request: AssistRequest) => Promise<AssistDraft>) | false;
+  /**
+   * Labels and assignees offered in the report dialog. By default they come from the
+   * inspect server (GET /v1/options, the repo's labels and assignable users). Pass a
+   * function to provide your own, or `false` to hide the pickers.
+   */
+  onOptions?: (() => Promise<RepoOptions>) | false;
   /** Show the floating launcher button. Default `true`. */
   launcher?: boolean | { position?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left' };
   /** Keyboard shortcut that opens the toolbar. Default `alt+shift+i`; `false` disables it. */

@@ -12,6 +12,7 @@ import (
 
 	"github.com/uug-ai/inspect/server/internal/config"
 	"github.com/uug-ai/inspect/server/internal/github"
+	"github.com/uug-ai/inspect/server/internal/options"
 	"github.com/uug-ai/inspect/server/internal/store"
 )
 
@@ -41,6 +42,8 @@ type Service struct {
 	Previews *Previews                     // dry-run previews
 	Log      *slog.Logger
 	Now      func() time.Time
+	// Options checks the reporter's labels and assignees; nil turns the pickers off.
+	Options RepoOptions
 }
 
 // Submit stores attachments and creates the issue (or a dry-run preview).
@@ -79,15 +82,17 @@ func (s *Service) Submit(ctx context.Context, p *Payload, files []File) (*Result
 		atts = append(atts, Attachment{Name: name, URL: url, IsVideo: IsVideo(f.ContentType)})
 	}
 
+	labels, assignees := s.choices(ctx, repo, p)
 	req := github.IssueRequest{
-		Title:  p.Title,
-		Body:   RenderBody(p, atts),
-		Labels: s.labels(p.Labels),
+		Title:     p.Title,
+		Body:      RenderBody(p, atts),
+		Labels:    labels,
+		Assignees: assignees,
 	}
 
 	if s.Cfg.DryRun {
 		s.Log.Info("dry run: would create issue",
-			"repo", repo, "title", req.Title, "labels", req.Labels, "attachments", len(atts), "body", req.Body)
+			"repo", repo, "title", req.Title, "labels", req.Labels, "assignees", req.Assignees, "attachments", len(atts), "body", req.Body)
 		s.Previews.Add(id, repo, req)
 		return &Result{Number: 0, URL: s.Cfg.PublicURL + "/preview/" + id}, nil
 	}
@@ -100,9 +105,36 @@ func (s *Service) Submit(ctx context.Context, p *Payload, files []File) (*Result
 	return &Result{Number: iss.Number, URL: iss.HTMLURL}, nil
 }
 
-// labels returns the configured labels plus client labels that are in the
-// allowlist (none if the allowlist is empty), de-duplicated.
-func (s *Service) labels(client []string) []string {
+// RepoOptions looks up a repository's labels and assignable users; implemented
+// by *options.Cache. Nil means the pickers are off.
+type RepoOptions interface {
+	Get(ctx context.Context, repo string) (*options.Options, error)
+}
+
+// choices returns the labels and assignees for the issue: the configured labels,
+// plus the reporter's picks that exist in the repository (labels) or may be
+// assigned there (assignees). If the repository can't be checked, the picks are
+// dropped and the report is filed anyway.
+func (s *Service) choices(ctx context.Context, repo string, p *Payload) ([]string, []string) {
+	client := p.Labels
+	var assignees []string
+	if s.Options != nil && (len(p.Labels) > 0 || len(p.Assignees) > 0) {
+		if o, err := s.Options.Get(ctx, repo); err != nil {
+			s.Log.Warn("could not check labels and assignees; filing without them", "repo", repo, "err", err)
+			client = nil
+		} else {
+			client = o.FilterLabels(p.Labels)
+			assignees = o.FilterAssignees(p.Assignees)
+		}
+	}
+	return s.labels(client, s.Options != nil), assignees
+}
+
+// labels returns the configured labels plus client labels, de-duplicated.
+// Client labels must be on INSPECT_ALLOWED_LABELS when that's set; without an
+// allowlist they're only kept when they were checked against the repository
+// (picker on), otherwise dropped.
+func (s *Service) labels(client []string, checked bool) []string {
 	out := make([]string, 0, len(s.Cfg.Labels)+len(client))
 	seen := map[string]bool{}
 	add := func(l string) {
@@ -116,6 +148,12 @@ func (s *Service) labels(client []string) []string {
 		add(l)
 	}
 	for _, l := range client {
+		if len(s.Cfg.AllowedLabels) == 0 {
+			if checked {
+				add(l)
+			}
+			continue
+		}
 		for _, a := range s.Cfg.AllowedLabels {
 			if strings.EqualFold(a, l) {
 				add(a)

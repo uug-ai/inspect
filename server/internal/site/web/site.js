@@ -66,6 +66,18 @@
           }, 1200);
         });
       },
+      // Demo mode: sample labels and people (a real server lists the repo's own).
+      onOptions: function () {
+        return Promise.resolve({
+          labels: [
+            { name: 'bug', color: 'd73a4a', description: "Something isn't working" },
+            { name: 'frontend', color: '1d76db', description: 'Web app' },
+            { name: 'backend', color: '0e8a16', description: 'API and workers' },
+            { name: 'ux', color: 'c5def5', description: 'Design and usability' },
+          ],
+          assignees: [{ login: 'alex' }, { login: 'sam' }, { login: 'robin' }],
+        });
+      },
       onSubmit: function () {
         // Demo mode: nothing leaves the browser.
         return new Promise(function (resolve) { setTimeout(function () { resolve({}); }, 700); });

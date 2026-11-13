@@ -194,3 +194,11 @@ When Azure OpenAI is configured, the report dialog shows **Write it for me**. Th
 | `AZURE_OPENAI_REASONING_EFFORT` | Optional: `minimal`, `low`, `medium` or `high`, for reasoning models. Leave unset for `model-router`. |
 
 The assistant is on only when the first three are set; `GET /v1/capabilities` tells the browser library (`{"assist": true}`), so the button only appears when it works. `/v1/assist` has the same origin, API-key and size checks as `/v1/issues`, its own per-IP rate limit (`INSPECT_RATE_LIMIT`), and accepts screenshots only (no videos).
+
+## Labels and assignees
+
+The report dialog has **Labels** and **Assignees** pickers, filled from `GET /v1/options` (`?repo=owner/name`, default `INSPECT_DEFAULT_REPO`): the repository's labels (name, colour, description) and the users who can be assigned, as GitHub lists them for the token. Results are cached for 5 minutes per repository; if GitHub can't be reached, the last good list is used.
+
+When an issue is created, the reporter's labels must exist in the repository and the assignees must be assignable there; anything else is dropped, so a browser can't create labels or assign arbitrary accounts. `INSPECT_LABELS` (default `inspect`) is always added, and `INSPECT_ALLOWED_LABELS`, when set, further limits which labels reporters may pick. If the repository can't be checked at that moment, the issue is still filed, without the reporter's labels and assignees.
+
+The pickers need the GitHub token (Issues: read is enough to list labels and assignees). They're off in local dry-run mode without a token. Anyone on an allowed origin can see the repository's label names and the assignable GitHub logins, so keep that in mind before adding customer-facing origins.

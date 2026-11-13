@@ -239,6 +239,40 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .ix-assist-note { font-size: 12px; color: var(--ix-fg-muted); }
 .ix-link { border: 0; background: none; padding: 0; color: var(--ix-accent); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
 .ix-field textarea:disabled, .ix-field input:disabled { opacity: .6; }
+/* Label / assignee pickers */
+.ix-picker {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 38px; padding: 5px 8px;
+  border: 1px solid var(--ix-border); border-radius: 8px; background: var(--ix-bg); cursor: text;
+}
+.ix-picker:focus-within { border-color: var(--ix-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ix-accent) 22%, transparent); }
+.ix-chips { display: contents; }
+.ix-chip {
+  display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 4px 0 8px; border-radius: 999px;
+  background: var(--ix-bg-subtle); border: 1px solid var(--ix-border); font-size: 12px; font-weight: 550; max-width: 100%;
+}
+.ix-chip > span:not(.ix-dot):not(.ix-avatar) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ix-chip-x { display: grid; place-items: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--ix-fg-muted); }
+.ix-chip-x:hover { background: var(--ix-border); color: var(--ix-fg); }
+.ix-chip-x .ix-icon { width: 11px; height: 11px; }
+.ix-picker-input.ix-picker-input {
+  flex: 1; min-width: 90px; border: 0; padding: 4px 2px; box-shadow: none; background: transparent; font-size: 13px;
+}
+.ix-picker-input.ix-picker-input:focus { box-shadow: none; }
+.ix-picker-list {
+  max-height: 180px; overflow-y: auto; border: 1px solid var(--ix-border); border-radius: 8px;
+  background: var(--ix-bg); box-shadow: 0 8px 24px rgba(0, 0, 0, .12);
+}
+.ix-option { display: flex; align-items: center; gap: 8px; padding: 7px 10px; cursor: pointer; font-size: 13px; }
+.ix-option:hover { background: var(--ix-bg-subtle); }
+.ix-option[aria-selected="true"] { background: color-mix(in srgb, var(--ix-accent) 8%, transparent); }
+.ix-option-text { display: flex; flex-direction: column; min-width: 0; }
+.ix-option-text small { color: var(--ix-fg-muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ix-check { width: 14px; flex: none; color: var(--ix-accent); display: grid; place-items: center; }
+.ix-check .ix-icon { width: 14px; height: 14px; }
+.ix-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .15); }
+.ix-avatar { width: 18px; height: 18px; border-radius: 50%; flex: none; object-fit: cover; }
+.ix-initials { display: grid; place-items: center; background: var(--ix-bg-subtle); border: 1px solid var(--ix-border); font-size: 8px; font-weight: 700; color: var(--ix-fg-muted); }
+.ix-picker-empty { padding: 10px; font-size: 12.5px; color: var(--ix-fg-muted); }
 .ix-context { border: 1px solid var(--ix-border); border-radius: 8px; font-size: 13px; }
 .ix-context summary { padding: 8px 10px; cursor: pointer; display: flex; align-items: center; gap: 8px; list-style: none; }
 .ix-context summary::-webkit-details-marker { display: none; }
