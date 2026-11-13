@@ -181,7 +181,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 /* Screenshot strip (several screenshots in one report) */
 .ix-shots {
-  flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 12px; overflow-x: auto;
+  flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px;
   border-top: 1px solid var(--ix-border); background: var(--ix-bg);
 }
 .ix-shot-wrap { position: relative; flex: none; }
@@ -201,6 +201,26 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .ix-shot-remove .ix-icon { width: 11px; height: 11px; }
 .ix-shot-remove:hover { background: var(--ix-danger); }
+.ix-add-wrap { position: relative; flex: none; }
+.ix-shot-plus {
+  display: grid; place-items: center; width: 72px; height: 48px; padding: 0; border-radius: 6px;
+  border: 1.5px dashed var(--ix-border); background: transparent; color: var(--ix-fg-muted);
+}
+.ix-shot-plus:hover, .ix-shot-plus[aria-expanded="true"] { border-color: var(--ix-accent); color: var(--ix-accent); background: color-mix(in srgb, var(--ix-accent) 6%, transparent); }
+.ix-shot-plus .ix-icon { width: 22px; height: 22px; }
+.ix-add-menu {
+  position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 2; min-width: 240px; padding: 6px;
+  background: var(--ix-bg); border: 1px solid var(--ix-border); border-radius: 10px; box-shadow: 0 12px 32px rgba(0, 0, 0, .18);
+}
+.ix-add-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 0; border-radius: 7px;
+  background: transparent; color: var(--ix-fg); text-align: left;
+}
+.ix-add-item:hover, .ix-add-item:focus-visible { background: var(--ix-bg-subtle); outline: none; }
+.ix-add-item .ix-icon { width: 18px; height: 18px; color: var(--ix-accent); }
+.ix-add-item span { display: flex; flex-direction: column; }
+.ix-add-item b { font-size: 13px; font-weight: 600; }
+.ix-add-item small { font-size: 11.5px; color: var(--ix-fg-muted); }
 .ix-shot-label { margin-left: 6px; font-size: 12px; color: var(--ix-fg-muted); }
 .ix-shot-add {
   flex: none; display: inline-flex; align-items: center; gap: 6px; height: 48px; padding: 0 12px; border-radius: 6px;
@@ -220,7 +240,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .ix-field textarea { min-height: 140px; resize: vertical; }
 /* The description fills the dialog's free height (drafts are long). */
-.ix-field.ix-grow { flex: 1 1 auto; min-height: 0; }
+/* Grows into free space but never shrinks below its content, so an open
+   label/assignee list scrolls the form instead of overlapping the fields above. */
+.ix-field.ix-grow { flex: 1 0 auto; }
 .ix-field.ix-grow textarea { flex: 1 1 auto; }
 .ix-dialog.ix-note .ix-field.ix-grow textarea { flex: none; }
 .ix-field input:focus, .ix-field textarea:focus {
