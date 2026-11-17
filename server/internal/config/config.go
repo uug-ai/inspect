@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/uug-ai/inspect/server/internal/agents"
 )
 
 // Store backends.
@@ -30,6 +32,9 @@ type Config struct {
 
 	AllowedOrigins []string // "*" allows any origin
 	APIKeys        []string // empty: no auth
+
+	// Agents the reporter may hand the issue to (INSPECT_AGENTS); empty: none.
+	Agents agents.Set
 
 	Labels        []string // always applied
 	AllowedLabels []string // client labels that may pass through; empty: drop all
@@ -110,6 +115,17 @@ func Load(getenv func(string) string) (*Config, error) {
 		errs = append(errs, fmt.Errorf("INSPECT_ASSETS_REPO %q is not owner/name", c.AssetsRepo))
 	}
 
+	agentSet, err := agents.Parse(getenv("INSPECT_AGENTS"))
+	if err != nil {
+		errs = append(errs, fmt.Errorf("INSPECT_AGENTS: %w", err))
+	}
+	c.Agents = agentSet
+	for _, r := range c.Agents.Repos() {
+		if !containsFold(c.AllowedRepos, r) {
+			errs = append(errs, fmt.Errorf("INSPECT_AGENTS: repo %q is not in INSPECT_ALLOWED_REPOS", r))
+		}
+	}
+
 	c.AllowedOrigins = splitList(getenv("INSPECT_ALLOWED_ORIGINS"))
 	for i, o := range c.AllowedOrigins {
 		c.AllowedOrigins[i] = strings.TrimRight(o, "/")
@@ -121,7 +137,6 @@ func Load(getenv func(string) string) (*Config, error) {
 		c.Labels = []string{"inspect"}
 	}
 
-	var err error
 	if c.DryRun, err = parseBool(getenv("INSPECT_DRY_RUN")); err != nil {
 		errs = append(errs, fmt.Errorf("INSPECT_DRY_RUN: %w", err))
 	}

@@ -31,6 +31,8 @@ The request is `multipart/form-data` with these fields:
   "kind": "screenshot | recording | note",
   "repo": "owner/name (optional, must be in INSPECT_ALLOWED_REPOS)",
   "labels": ["optional; only INSPECT_ALLOWED_LABELS pass through"],
+  "assignees": ["optional; must be assignable in the repository"],
+  "agents": ["optional; ids from INSPECT_AGENTS, e.g. copilot"],
   "context": {
     "url": "...", "title": "...", "userAgent": "...",
     "viewport": {"width": 1440, "height": 900, "dpr": 2},
@@ -72,6 +74,7 @@ left out. Over-long context fields are truncated rather than rejected. Only the
 | `INSPECT_API_KEYS` | (empty) | Comma-separated bearer keys. If empty, no auth is required. |
 | `INSPECT_LABELS` | `inspect` | Labels added to every issue. |
 | `INSPECT_ALLOWED_LABELS` | (empty) | Client labels that may pass through. If empty, all client labels are dropped. |
+| `INSPECT_AGENTS` | (empty) | AI agents reporters may hand the issue to; see [AI agents](#ai-agents). If empty, none are offered. |
 | `INSPECT_MAX_UPLOAD_MB` | `50` | Limit on the total size of all attachments. |
 | `INSPECT_MAX_FILE_MB` | `INSPECT_MAX_UPLOAD_MB` | Limit for each attachment. It is capped at the total limit. |
 | `INSPECT_RATE_LIMIT` | `10` | `POST`s per minute per client IP, with a burst of the same size. `0` turns rate limiting off. |
@@ -202,3 +205,26 @@ The report dialog has **Labels** and **Assignees** pickers, filled from `GET /v1
 When an issue is created, the reporter's labels must exist in the repository and the assignees must be assignable there; anything else is dropped, so a browser can't create labels or assign arbitrary accounts. `INSPECT_LABELS` (default `inspect`) is always added, and `INSPECT_ALLOWED_LABELS`, when set, further limits which labels reporters may pick. If the repository can't be checked at that moment, the issue is still filed, without the reporter's labels and assignees.
 
 The pickers need the GitHub token (Issues: read is enough to list labels and assignees). They're off in local dry-run mode without a token. Anyone on an allowed origin can see the repository's label names and the assignable GitHub logins, so keep that in mind before adding customer-facing origins.
+
+## AI agents
+
+Reporters can hand an issue to an AI coding agent, which picks it up and opens a pull request. Agents appear in the **Assignees** picker (with a sparkle icon) when `INSPECT_AGENTS` lists them, and `GET /v1/options` returns them as `"agents": [{"id", "name"}]`. Inspect doesn't run the agents: once the issue exists, it does what each agent waits for on GitHub, using the server's GitHub token.
+
+`INSPECT_AGENTS` is a comma-separated list of presets, which assign GitHub's coding agents:
+
+| Preset | Shown as | Assigns |
+|---|---|---|
+| `copilot` | Copilot | `copilot-swe-agent[bot]` |
+| `claude` | Claude | `anthropic-code-agent[bot]` |
+| `codex` | Codex | `openai-code-agent[bot]` |
+
+For these, the token's account needs a Copilot seat that includes the agent, and the agent must be enabled for the repository. Or give a JSON array to define agents yourself, each with an `id`, a `name` and at least one trigger: `label` (added after creation, so a `labeled` event fires), `assignee` (a login assigned after creation) and/or `comment` (posted after creation; `{number}` and `{url}` are filled in). `repos` limits an agent to some repositories. An entry whose `id` is a preset starts from that preset:
+
+```sh
+# Claude Code's GitHub Action (anthropics/claude-code-action with label_trigger: claude) instead of the hosted agent
+INSPECT_AGENTS='[{"id":"copilot"},{"id":"claude","name":"Claude Code","assignee":"","label":"claude","repos":["uug-ai/hub-frontend"]}]'
+```
+
+The issue gets a note naming the agents, and the `POST /v1/issues` response lists them as `"agents": [{"id", "name", "ok", "error"}]`. A hand-off that fails (for example because the token can't assign that agent) is logged and reported to the browser; the issue is created either way.
+
+**Before enabling agents, consider who can reach the dialog.** The hand-off is made by the server's token, so the agent acts on whatever any reporter on an allowed origin writes, with write access to the repository. Offer agents only where reporters are trusted (internal or staging origins, or behind `INSPECT_API_KEYS`), and keep branch protection so a person reviews every agent pull request.

@@ -113,3 +113,26 @@ func TestLoad(t *testing.T) {
 		})
 	}
 }
+
+func TestAgents(t *testing.T) {
+	base := map[string]string{"GITHUB_TOKEN": "x", "INSPECT_DEFAULT_REPO": "o/r"}
+	load := func(agents string) (*Config, error) {
+		env := map[string]string{"INSPECT_AGENTS": agents}
+		for k, v := range base {
+			env[k] = v
+		}
+		return Load(func(k string) string { return env[k] })
+	}
+	if c, err := load(""); err != nil || len(c.Agents) != 0 {
+		t.Fatalf("default: %v %v", c, err)
+	}
+	if c, err := load("claude,copilot"); err != nil || len(c.Agents) != 2 {
+		t.Fatalf("presets: %v %v", c, err)
+	}
+	if _, err := load(`[{"id":"claude","repos":["o/other"]}]`); err == nil || !strings.Contains(err.Error(), "not in INSPECT_ALLOWED_REPOS") {
+		t.Errorf("repo outside allowlist: %v", err)
+	}
+	if _, err := load("devin"); err == nil || !strings.Contains(err.Error(), "INSPECT_AGENTS") {
+		t.Errorf("unknown preset: %v", err)
+	}
+}

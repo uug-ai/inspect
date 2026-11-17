@@ -76,11 +76,14 @@
             { name: 'ux', color: 'c5def5', description: 'Design and usability' },
           ],
           assignees: [{ login: 'alex' }, { login: 'sam' }, { login: 'robin' }],
+          agents: [{ id: 'claude', name: 'Claude' }, { id: 'copilot', name: 'Copilot' }],
         });
       },
-      onSubmit: function () {
+      onSubmit: function (report) {
         // Demo mode: nothing leaves the browser.
-        return new Promise(function (resolve) { setTimeout(function () { resolve({}); }, 700); });
+        var names = { claude: 'Claude', copilot: 'Copilot' };
+        var agents = (report.payload.agents || []).map(function (id) { return { id: id, name: names[id] || id, ok: true }; });
+        return new Promise(function (resolve) { setTimeout(function () { resolve({ agents: agents }); }, 700); });
       },
     });
     return inspect;

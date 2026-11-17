@@ -10,7 +10,12 @@ export interface FormValues {
   includeContext: boolean;
   labels: string[];
   assignees: string[];
+  /** AI agents (ids) to hand the issue to. */
+  agents: string[];
 }
+
+/** Agents share the assignee picker; their values are prefixed so they can't clash with logins. */
+const AGENT = 'agent:';
 
 export type AddMode = 'region' | 'element';
 
@@ -90,14 +95,27 @@ export function openDialog(container: HTMLElement, opts: DialogOptions): Promise
 
     // Labels and assignees, as on GitHub. Hidden until the repo's options arrive.
     const labelPicker = picker({ id: 'ix-labels', label: 'Labels', placeholder: 'Add labels…', kind: 'label', selected: opts.initial?.labels });
-    const assigneePicker = picker({ id: 'ix-assignees', label: 'Assignees', placeholder: 'Assign people…', kind: 'user', selected: opts.initial?.assignees });
+    const assigneePicker = picker({
+      id: 'ix-assignees',
+      label: 'Assignees',
+      placeholder: 'Assign people…',
+      kind: 'user',
+      selected: [...(opts.initial?.agents ?? []).map((a) => AGENT + a), ...(opts.initial?.assignees ?? [])],
+    });
     labelPicker.element.hidden = assigneePicker.element.hidden = true;
     void opts.repoOptions?.then((o) => {
       if (closed) return;
       labelPicker.setItems(o.labels.map((l) => ({ value: l.name, color: l.color, hint: l.description })));
-      assigneePicker.setItems(o.assignees.map((a) => ({ value: a.login, avatar: a.avatarUrl })));
+      const agents = o.agents ?? [];
+      assigneePicker.setItems(
+        [
+          ...agents.map((a) => ({ value: AGENT + a.id, text: a.name, hint: 'AI agent: picks up the issue and opens a pull request', agent: true })),
+          ...o.assignees.map((a) => ({ value: a.login, avatar: a.avatarUrl })),
+        ],
+        agents.length ? 'Assign people or an AI agent…' : undefined,
+      );
       labelPicker.element.hidden = o.labels.length === 0;
-      assigneePicker.element.hidden = o.assignees.length === 0;
+      assigneePicker.element.hidden = o.assignees.length === 0 && agents.length === 0;
     });
 
     const [heading, sub] = HEADINGS[opts.kind];
@@ -137,7 +155,8 @@ export function openDialog(container: HTMLElement, opts: DialogOptions): Promise
       description: description.value.trim(),
       includeContext: includeContext.checked,
       labels: labelPicker.selected(),
-      assignees: assigneePicker.selected(),
+      assignees: assigneePicker.selected().filter((v) => !v.startsWith(AGENT)),
+      agents: assigneePicker.selected().filter((v) => v.startsWith(AGENT)).map((v) => v.slice(AGENT.length)),
     });
 
     const setDrafting = (on: boolean) => {

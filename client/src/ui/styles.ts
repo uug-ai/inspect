@@ -293,6 +293,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .ix-check .ix-icon { width: 14px; height: 14px; }
 .ix-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .15); }
 .ix-avatar { width: 18px; height: 18px; border-radius: 50%; flex: none; object-fit: cover; }
+.ix-agent { display: grid; place-items: center; background: var(--ix-accent); color: #fff; }
+.ix-agent .ix-icon { width: 12px; height: 12px; }
 .ix-initials { display: grid; place-items: center; background: var(--ix-bg-subtle); border: 1px solid var(--ix-border); font-size: 8px; font-weight: 700; color: var(--ix-fg-muted); }
 .ix-picker-empty { padding: 10px; font-size: 12.5px; color: var(--ix-fg-muted); }
 .ix-context { border: 1px solid var(--ix-border); border-radius: 8px; font-size: 13px; }
