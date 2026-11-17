@@ -24,6 +24,7 @@ const (
 	MaxDescription = 20000
 	MaxLabels      = 20
 	MaxAssignees   = 10
+	MaxAgents      = 5
 	MaxLabelLen    = 50
 
 	maxURL        = 2048
@@ -44,6 +45,7 @@ type Payload struct {
 	Repo        string   `json:"repo"`
 	Labels      []string `json:"labels"`
 	Assignees   []string `json:"assignees"`
+	Agents      []string `json:"agents"` // ids of configured AI agents to hand the issue to
 	Context     Context  `json:"context"`
 }
 
@@ -137,6 +139,17 @@ func (p *Payload) Validate() error {
 			return invalid("invalid assignee %q", a)
 		}
 		p.Assignees[i] = a
+	}
+
+	if len(p.Agents) > MaxAgents {
+		return invalid("too many agents (max %d)", MaxAgents)
+	}
+	for i, a := range p.Agents {
+		a = strings.ToLower(strings.TrimSpace(a))
+		if a == "" || len(a) > 32 {
+			return invalid("invalid agent %q", a)
+		}
+		p.Agents[i] = a
 	}
 
 	if len(p.Labels) > MaxLabels {

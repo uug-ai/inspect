@@ -33,7 +33,9 @@ async function mockSubmit(report: Report) {
   last.textContent = JSON.stringify({ payload: report.payload, attachments: files }, null, 2);
   (window as unknown as { __lastReport: Report }).__lastReport = report;
   if (report.payload.title.toLowerCase().includes('fail')) throw new Error('Mock server error: try another title.');
-  return { number: 42, url: 'https://github.com/uug-ai/inspect/issues/42' };
+  const names: Record<string, string> = { claude: 'Claude', copilot: 'Copilot' };
+  const agents = (report.payload.agents ?? []).map((id) => ({ id, name: names[id] ?? id, ok: true }));
+  return { number: 42, url: 'https://github.com/uug-ai/inspect/issues/42', agents };
 }
 
 // Mock "Write it for me" (the real one runs on the inspect server with Azure OpenAI).
@@ -84,6 +86,10 @@ const inspect = createInspect({
           { name: 'priority: high', color: 'b60205' },
         ],
         assignees: [{ login: 'cedricve' }, { login: 'kilianboute' }, { login: 'uug-ai-bot' }],
+        agents: [
+          { id: 'claude', name: 'Claude' },
+          { id: 'copilot', name: 'Copilot' },
+        ],
       }),
   getContext: () => ({ version: '1.2.3', organisation: 'demo' }),
 });

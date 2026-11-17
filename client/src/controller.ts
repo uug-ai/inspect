@@ -1,7 +1,7 @@
 import { fetchRepoOptions, requestAssist, serverCapabilities, submitReport } from './api';
 import { CaptureUnsupportedError, Recording, ScreenSession } from './capture';
 import { ConsoleBuffer } from './console';
-import type { Inspect, InspectOptions, Rect, ReportContext, ReportKind } from './types';
+import type { Inspect, InspectOptions, Rect, ReportContext, ReportKind, SubmitResult } from './types';
 import { Annotator } from './ui/annotator';
 import { openDialog, type FormValues } from './ui/dialog';
 import { h, icon } from './ui/dom';
@@ -381,12 +381,13 @@ export class Controller implements Inspect {
               repo: this.options.repo,
               labels: [...new Set([...(this.options.labels ?? []), ...values!.labels])],
               assignees: values!.assignees,
+              agents: values!.agents.length ? values!.agents : undefined,
               context: values!.includeContext ? context : { timestamp: context.timestamp },
             },
             attachments,
           }),
         );
-        sending.update({ message: sent.number ? `Issue #${sent.number} created` : 'Issue created', href: sent.url });
+        sending.update({ message: createdMessage(sent), href: sent.url });
         return 'submitted';
       } catch (err) {
         // Reopen the report with everything the person entered, plus the error.
@@ -395,6 +396,16 @@ export class Controller implements Inspect {
       }
     }
   }
+}
+
+/** "Issue #12 created, handed to Claude Code", naming any agent hand-off that failed. */
+function createdMessage(sent: SubmitResult): string {
+  let message = sent.number ? `Issue #${sent.number} created` : 'Issue created';
+  const agents = sent.agents ?? [];
+  const names = (ok: boolean) => agents.filter((a) => a.ok === ok).map((a) => a.name).join(' and ');
+  if (names(true)) message += `, handed to ${names(true)}`;
+  if (names(false)) message += `. Could not hand it to ${names(false)}`;
+  return message;
 }
 
 /** Warn before the page is closed while a report is still being sent. */

@@ -37,6 +37,8 @@ export interface ReportPayload {
   repo?: string;
   labels?: string[];
   assignees?: string[];
+  /** Ids of AI agents (from `RepoOptions.agents`) to hand the issue to. */
+  agents?: string[];
   context: ReportContext;
 }
 
@@ -50,6 +52,8 @@ export interface Report {
 export interface RepoOptions {
   labels: Array<{ name: string; color?: string; description?: string }>;
   assignees: Array<{ login: string; avatarUrl?: string }>;
+  /** AI agents the issue can be handed to (Claude Code, Copilot…), offered with the assignees. */
+  agents?: Array<{ id: string; name: string }>;
 }
 
 /** What the writing assistant gets: the notes so far, screenshots and (if allowed) context. */
@@ -71,6 +75,8 @@ export interface AssistDraft {
 export interface SubmitResult {
   number?: number;
   url?: string;
+  /** The AI agents the issue was handed to; `ok: false` means that hand-off failed. */
+  agents?: Array<{ id: string; name: string; ok: boolean; error?: string }>;
 }
 
 export interface InspectOptions {

@@ -119,6 +119,10 @@ func build(cfg *config.Config, log *slog.Logger) http.Handler {
 		repoOptions = &options.Cache{List: gh}
 	}
 
+	for _, a := range cfg.Agents {
+		log.Info("agent offered", "id", a.ID, "name", a.Name, "label", a.Label, "assignee", a.Assignee, "comment", a.Comment != "", "repos", a.Repos)
+	}
+
 	var previews *issue.Previews
 	if cfg.DryRun {
 		previews = issue.NewPreviews(100)
@@ -133,6 +137,7 @@ func build(cfg *config.Config, log *slog.Logger) http.Handler {
 			Previews: previews,
 			Log:      log,
 			Options:  optionalRepoOptions(repoOptions),
+			Agents:   gh,
 		},
 		Local:    local,
 		Previews: previews,

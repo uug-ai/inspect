@@ -10,12 +10,16 @@ export interface PickerItem {
   color?: string;
   /** Avatar image URL (assignees). */
   avatar?: string;
+  /** Shown instead of the value (agents: "Claude Code" for "agent:claude"). */
+  text?: string;
+  /** An AI agent rather than a person: drawn with the sparkle icon. */
+  agent?: boolean;
 }
 
 export interface Picker {
   element: HTMLElement;
   selected(): string[];
-  setItems(items: PickerItem[]): void;
+  setItems(items: PickerItem[], placeholder?: string): void;
 }
 
 const MAX_SHOWN = 50;
@@ -44,27 +48,32 @@ export function picker(opts: { id: string; label: string; placeholder: string; s
   const swatch = (item: PickerItem | undefined, value: string) =>
     opts.kind === 'label'
       ? h('span', { class: 'ix-dot', style: `background:#${/^[0-9a-f]{6}$/i.test(item?.color ?? '') ? item!.color : '8b8b96'}` })
-      : item?.avatar
+      : item?.agent
+        ? h('span', { class: 'ix-avatar ix-agent' }, icon(icons.sparkle))
+        : item?.avatar
         ? h('img', { class: 'ix-avatar', src: item.avatar, alt: '', referrerpolicy: 'no-referrer' })
         : h('span', { class: 'ix-avatar ix-initials' }, value.slice(0, 2).toUpperCase());
 
   const renderChips = () => {
     chips.replaceChildren(
       ...chosen.map((value) => {
-        const remove = h('button', { type: 'button', class: 'ix-chip-x', 'aria-label': `Remove ${value}` }, icon(icons.close));
+        const shown = find(value)?.text ?? value;
+        const remove = h('button', { type: 'button', class: 'ix-chip-x', 'aria-label': `Remove ${shown}` }, icon(icons.close));
         remove.addEventListener('click', () => {
           chosen = chosen.filter((v) => v !== value);
           renderChips();
           renderList();
         });
-        return h('span', { class: 'ix-chip' }, swatch(find(value), value), h('span', {}, value), remove);
+        return h('span', { class: 'ix-chip' }, swatch(find(value), value), h('span', {}, shown), remove);
       }),
     );
   };
 
   const matches = () => {
     const q = input.value.trim().toLowerCase();
-    return items.filter((i) => !q || i.value.toLowerCase().includes(q) || (i.hint ?? '').toLowerCase().includes(q));
+    return items.filter(
+      (i) => !q || [i.text ?? i.value, i.hint ?? ''].some((s) => s.toLowerCase().includes(q)),
+    );
   };
 
   const toggle = (value: string) => {
@@ -90,7 +99,7 @@ export function picker(opts: { id: string; label: string; placeholder: string; s
           { class: 'ix-option', role: 'option', 'aria-selected': String(on) },
           h('span', { class: 'ix-check' }, on ? icon(icons.check) : null),
           swatch(item, item.value),
-          h('span', { class: 'ix-option-text' }, h('span', {}, item.value), item.hint ? h('small', {}, item.hint) : null),
+          h('span', { class: 'ix-option-text' }, h('span', {}, item.text ?? item.value), item.hint ? h('small', {}, item.hint) : null),
         );
         // pointerdown keeps focus in the input, so the list doesn't close before the click.
         option.addEventListener('pointerdown', (e) => {
@@ -139,8 +148,9 @@ export function picker(opts: { id: string; label: string; placeholder: string; s
   return {
     element,
     selected: () => [...chosen],
-    setItems(next) {
+    setItems(next, placeholder) {
       items = next;
+      if (placeholder) input.placeholder = placeholder;
       // Keep only picks that exist in the repository.
       chosen = chosen.filter((v) => find(v)).map((v) => find(v)!.value);
       renderChips();

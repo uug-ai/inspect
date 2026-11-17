@@ -267,17 +267,32 @@ func (s *Server) repoOptions(w http.ResponseWriter, r *http.Request) {
 		repo = q
 	}
 	w.Header().Set("Cache-Control", "private, max-age=60")
-	if s.Options == nil {
-		writeJSON(w, http.StatusOK, options.Options{Labels: []options.Label{}, Assignees: []options.Assignee{}})
-		return
+	out := repoOptionsResponse{Options: options.Options{Labels: []options.Label{}, Assignees: []options.Assignee{}}, Agents: []agentOption{}}
+	for _, a := range s.Cfg.Agents.For(repo) {
+		out.Agents = append(out.Agents, agentOption{ID: a.ID, Name: a.Name})
 	}
-	o, err := s.Options.Get(r.Context(), repo)
-	if err != nil {
-		s.Log.Error("options failed", "repo", repo, "err", err)
-		writeError(w, http.StatusBadGateway, "could not load labels and assignees")
-		return
+	if s.Options != nil {
+		o, err := s.Options.Get(r.Context(), repo)
+		if err != nil {
+			s.Log.Error("options failed", "repo", repo, "err", err)
+			writeError(w, http.StatusBadGateway, "could not load labels and assignees")
+			return
+		}
+		out.Options = *o
 	}
-	writeJSON(w, http.StatusOK, o)
+	writeJSON(w, http.StatusOK, out)
+}
+
+// repoOptionsResponse is what GET /v1/options returns: the repository's labels
+// and assignable people, plus the AI agents the issue can be handed to.
+type repoOptionsResponse struct {
+	options.Options
+	Agents []agentOption `json:"agents"`
+}
+
+type agentOption struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 // assist drafts a title and description from the reporter's notes, screenshots

@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uug-ai/inspect/server/internal/agents"
 	"github.com/uug-ai/inspect/server/internal/config"
 	"github.com/uug-ai/inspect/server/internal/github"
 	"github.com/uug-ai/inspect/server/internal/options"
@@ -28,10 +29,28 @@ type File struct {
 	Ext         string
 }
 
+// AgentTrigger does what an agent waits for on an existing issue
+// (implemented by *github.Client).
+type AgentTrigger interface {
+	AddLabels(ctx context.Context, repo string, number int, labels []string) error
+	AddAssignees(ctx context.Context, repo string, number int, logins []string) error
+	CreateComment(ctx context.Context, repo string, number int, body string) error
+}
+
 // Result is what the API returns.
 type Result struct {
 	Number int    `json:"number"`
 	URL    string `json:"url"`
+	// Agents are the AI agents the issue was handed to.
+	Agents []AgentStatus `json:"agents,omitempty"`
+}
+
+// AgentStatus says whether an agent was triggered. The issue exists either way.
+type AgentStatus struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	OK    bool   `json:"ok"`
+	Error string `json:"error,omitempty"`
 }
 
 // Service turns a submission into stored media plus a GitHub issue.
@@ -44,6 +63,8 @@ type Service struct {
 	Now      func() time.Time
 	// Options checks the reporter's labels and assignees; nil turns the pickers off.
 	Options RepoOptions
+	// Agents triggers the AI agents picked from Cfg.Agents (unused in dry-run mode).
+	Agents AgentTrigger
 }
 
 // Submit stores attachments and creates the issue (or a dry-run preview).
@@ -83,18 +104,23 @@ func (s *Service) Submit(ctx context.Context, p *Payload, files []File) (*Result
 	}
 
 	labels, assignees := s.choices(ctx, repo, p)
+	picked := s.Cfg.Agents.Pick(repo, p.Agents)
 	req := github.IssueRequest{
 		Title:     p.Title,
-		Body:      RenderBody(p, atts),
+		Body:      RenderBody(p, atts) + agentNote(picked),
 		Labels:    labels,
 		Assignees: assignees,
 	}
 
 	if s.Cfg.DryRun {
 		s.Log.Info("dry run: would create issue",
-			"repo", repo, "title", req.Title, "labels", req.Labels, "assignees", req.Assignees, "attachments", len(atts), "body", req.Body)
+			"repo", repo, "title", req.Title, "labels", req.Labels, "assignees", req.Assignees, "agents", agentIDs(picked), "attachments", len(atts), "body", req.Body)
 		s.Previews.Add(id, repo, req)
-		return &Result{Number: 0, URL: s.Cfg.PublicURL + "/preview/" + id}, nil
+		res := &Result{Number: 0, URL: s.Cfg.PublicURL + "/preview/" + id}
+		for _, a := range picked {
+			res.Agents = append(res.Agents, AgentStatus{ID: a.ID, Name: a.Name, OK: true})
+		}
+		return res, nil
 	}
 
 	iss, err := s.Issues.CreateIssue(ctx, repo, req)
@@ -102,7 +128,71 @@ func (s *Service) Submit(ctx context.Context, p *Payload, files []File) (*Result
 		return nil, fmt.Errorf("create issue in %s: %w", repo, err)
 	}
 	s.Log.Info("issue created", "repo", repo, "number", iss.Number, "url", iss.HTMLURL, "attachments", len(atts))
-	return &Result{Number: iss.Number, URL: iss.HTMLURL}, nil
+	return &Result{Number: iss.Number, URL: iss.HTMLURL, Agents: s.handOff(ctx, repo, iss, picked)}, nil
+}
+
+// handOff triggers each picked agent on the new issue. A failure is reported
+// per agent; the issue stays.
+func (s *Service) handOff(ctx context.Context, repo string, iss *github.Issue, picked agents.Set) []AgentStatus {
+	var out []AgentStatus
+	for _, a := range picked {
+		err := s.trigger(ctx, repo, iss, a)
+		st := AgentStatus{ID: a.ID, Name: a.Name, OK: err == nil}
+		if err != nil {
+			st.Error = "could not hand the issue to " + a.Name
+			s.Log.Warn("agent not triggered", "repo", repo, "number", iss.Number, "agent", a.ID, "err", err)
+		} else {
+			s.Log.Info("agent triggered", "repo", repo, "number", iss.Number, "agent", a.ID)
+		}
+		out = append(out, st)
+	}
+	return out
+}
+
+func (s *Service) trigger(ctx context.Context, repo string, iss *github.Issue, a agents.Agent) error {
+	if s.Agents == nil {
+		return fmt.Errorf("no agent trigger configured")
+	}
+	if a.Label != "" {
+		if err := s.Agents.AddLabels(ctx, repo, iss.Number, []string{a.Label}); err != nil {
+			return fmt.Errorf("add label %q: %w", a.Label, err)
+		}
+	}
+	if a.Assignee != "" {
+		if err := s.Agents.AddAssignees(ctx, repo, iss.Number, []string{a.Assignee}); err != nil {
+			return fmt.Errorf("assign %s: %w", a.Assignee, err)
+		}
+	}
+	if a.Comment != "" {
+		if err := s.Agents.CreateComment(ctx, repo, iss.Number, a.RenderComment(iss.Number, iss.HTMLURL)); err != nil {
+			return fmt.Errorf("comment: %w", err)
+		}
+	}
+	return nil
+}
+
+// agentNote tells readers of the issue which agents it was handed to.
+func agentNote(picked agents.Set) string {
+	if len(picked) == 0 {
+		return ""
+	}
+	return "\n\n> [!NOTE]\n> The reporter handed this issue to " + strings.Join(agentNames(picked), " and ") + " to resolve.\n"
+}
+
+func agentNames(picked agents.Set) []string {
+	out := make([]string, len(picked))
+	for i, a := range picked {
+		out[i] = a.Name
+	}
+	return out
+}
+
+func agentIDs(picked agents.Set) []string {
+	out := make([]string, len(picked))
+	for i, a := range picked {
+		out[i] = a.ID
+	}
+	return out
 }
 
 // RepoOptions looks up a repository's labels and assignable users; implemented

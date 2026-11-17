@@ -285,3 +285,49 @@ func (c *Client) ListAssignees(ctx context.Context, repo string) ([]User, error)
 	}
 	return all, nil
 }
+
+func issuePath(repo string, number int) string {
+	return fmt.Sprintf("%s/issues/%d", repoPath(repo), number)
+}
+
+// AddLabels adds labels to an existing issue. Labels the repository doesn't have
+// yet are created. Unlike labels set when the issue is created, this fires an
+// issues "labeled" event, which is what label-triggered workflows wait for.
+func (c *Client) AddLabels(ctx context.Context, repo string, number int, labels []string) error {
+	return c.do(ctx, http.MethodPost, issuePath(repo, number)+"/labels", map[string][]string{"labels": labels}, nil)
+}
+
+// AddAssignees assigns users (or bots such as copilot-swe-agent[bot]) to an
+// existing issue. GitHub silently skips logins that can't be assigned, so the
+// response is checked for them; bots are not checked, as they can come back
+// under another login (copilot-swe-agent[bot] is listed as "Copilot").
+func (c *Client) AddAssignees(ctx context.Context, repo string, number int, logins []string) error {
+	var out struct {
+		Assignees []User `json:"assignees"`
+	}
+	if err := c.do(ctx, http.MethodPost, issuePath(repo, number)+"/assignees", map[string][]string{"assignees": logins}, &out); err != nil {
+		return err
+	}
+	var missing []string
+	for _, l := range logins {
+		found := strings.HasSuffix(l, "[bot]")
+		for _, a := range out.Assignees {
+			if found || strings.EqualFold(a.Login, l) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			missing = append(missing, l)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("github: could not assign %s (not assignable in %s with this token)", strings.Join(missing, ", "), repo)
+	}
+	return nil
+}
+
+// CreateComment posts a comment on an existing issue.
+func (c *Client) CreateComment(ctx context.Context, repo string, number int, body string) error {
+	return c.do(ctx, http.MethodPost, issuePath(repo, number)+"/comments", map[string]string{"body": body}, nil)
+}

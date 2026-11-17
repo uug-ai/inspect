@@ -17,7 +17,7 @@ export async function submitReport(options: InspectOptions, report: Report): Pro
     throw new Error('Could not reach the issue server. Check your connection and try again.');
   }
 
-  let data: { error?: string; number?: number; url?: string } = {};
+  let data: { error?: string } & SubmitResult = {};
   try {
     data = await res.json();
   } catch {
@@ -26,7 +26,7 @@ export async function submitReport(options: InspectOptions, report: Report): Pro
   if (!res.ok) {
     throw new Error(data.error || `The issue server returned ${res.status}.`);
   }
-  return { number: data.number, url: data.url };
+  return { number: data.number, url: data.url, agents: data.agents };
 }
 
 function baseUrl(options: InspectOptions): string {
@@ -108,7 +108,7 @@ export function fetchRepoOptions(options: InspectOptions): Promise<RepoOptions> 
       const res = await fetch(`${base}/v1/options${query}`, { headers });
       if (!res.ok) return EMPTY;
       const data = (await res.json()) as Partial<RepoOptions>;
-      return { labels: data.labels ?? [], assignees: data.assignees ?? [] };
+      return { labels: data.labels ?? [], assignees: data.assignees ?? [], agents: data.agents ?? [] };
     } catch {
       return EMPTY;
     }

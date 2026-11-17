@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/uug-ai/inspect/server/internal/agents"
 	"github.com/uug-ai/inspect/server/internal/assist"
 	"github.com/uug-ai/inspect/server/internal/options"
 )
@@ -140,7 +141,14 @@ func TestRepoOptions(t *testing.T) {
 		t.Errorf("disallowed repo: %d", rec.Code)
 	}
 	s.Options = nil
-	if rec := get(s, "/v1/options"); rec.Code != 200 || strings.TrimSpace(rec.Body.String()) != `{"labels":[],"assignees":[]}` {
+	if rec := get(s, "/v1/options"); rec.Code != 200 || strings.TrimSpace(rec.Body.String()) != `{"labels":[],"assignees":[],"agents":[]}` {
 		t.Errorf("picker off: %d %s", rec.Code, rec.Body)
+	}
+	s.Cfg.Agents = agents.Set{
+		{ID: "claude", Name: "Claude Code", Label: "claude"},
+		{ID: "copilot", Name: "Copilot", Assignee: "copilot-swe-agent[bot]", Repos: []string{"someone/else"}},
+	}
+	if rec := get(s, "/v1/options"); rec.Code != 200 || strings.TrimSpace(rec.Body.String()) != `{"labels":[],"assignees":[],"agents":[{"id":"claude","name":"Claude Code"}]}` {
+		t.Errorf("agents: %d %s", rec.Code, rec.Body)
 	}
 }
